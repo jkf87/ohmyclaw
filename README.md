@@ -253,9 +253,8 @@ ln -s /path/to/openclaw-harness ~/.openclaw/skills/harness
 
 ## 영감
 
-- [정구봉 — AI가 밤새 코딩하는 시대 (우로보로스 하네스)](https://www.youtube.com/watch?v=tjEVBcPT-RA)
-- [하네스 엔지니어링 완전정복 (PDF)](https://github.com/Amir-Arvan/Harness_Engineering_Complete_Guide)
-- [허예찬 — OMX: 코덱스를 마개조 하다](https://www.youtube.com/watch?v=XwFoegzihyE)
+- OpenAI Codex Community Meetup 발표 시리즈 (우로보로스 하네스, OMX)
+- Claude Code 하네스 생태계 분석
 
 ## 라이선스
 
