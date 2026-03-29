@@ -247,13 +247,14 @@ harness/
 
 **가입:** https://z.ai/subscribe?ic=OTYO9JPFNV ($10/월, Claude Code/Cline 등 20+ 코딩 툴 지원)
 
-**API 키 설정:**
+**인증 방법 (OAuth):**
 ```bash
-# .zshrc 또는 .bashrc에 추가
-export ZAI_API_KEY="your-zai-api-key"
+# 1. OpenClaw 온보드 실행
+openclaw onboard
 
-# OpenClaw config에 등록
-openclaw config set agents.defaults.providers.zai.apiKey "your-zai-api-key"
+# 2. 프로바이더에서 "Z.ai Coding Plan" 선택
+
+# 3. OAuth 인증 완료 후 API 키 발급 → 붙여넣기
 ```
 
 **모델 별칭:**
