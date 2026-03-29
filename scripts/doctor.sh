@@ -31,17 +31,13 @@ echo ""
 echo "[1/5] 핵심 파일 검사"
 
 required_files=(
-    "harness.yaml:마스터 설정"
-    "CATALOG.md:에이전트/스킬 카탈로그"
+    "SKILL.md:스킬 정의"
+    "CATALOG.md:에이전트 카탈로그"
     "agents/planner.md:계획 에이전트"
     "agents/worker.md:구현 에이전트"
     "agents/reviewer.md:리뷰 에이전트"
     "agents/debugger.md:디버그 에이전트"
-    "skills/plan/SKILL.md:계획 스킬"
-    "skills/work/SKILL.md:구현 스킬"
-    "skills/review/SKILL.md:리뷰 스킬"
-    "skills/debug/SKILL.md:디버그 스킬"
-    "skills/harness-work/SKILL.md:오케스트레이터 스킬"
+    "agents/bridge.md:브릿지 에이전트 정의"
     "routing/models.yaml:모델 카탈로그"
     "routing/routing-rules.yaml:라우팅 규칙"
     "routing/budget-profiles.yaml:예산 프로파일"
@@ -93,7 +89,6 @@ echo ""
 echo "[3/5] YAML 구문 검사"
 
 yaml_files=(
-    "harness.yaml"
     "routing/models.yaml"
     "routing/routing-rules.yaml"
     "routing/budget-profiles.yaml"
@@ -122,8 +117,8 @@ echo ""
 echo "[4/5] 환경 변수 검사"
 
 env_vars=(
-    "ZAI_API_KEY:Z.ai API 키 (GLM-5 시리즈)"
-    "OPENAI_API_KEY:OpenAI API 키 (GPT-5.4 Codex)"
+    "ZAI_API_KEY:Z.ai API 키 (GLM-5 시리즈) — openclaw onboard로 OAuth 설정"
+    "OPENAI_API_KEY:OpenAI API 키 (GPT-5.4 Codex) — openclaw onboard로 OAuth 설정"
 )
 
 for entry in "${env_vars[@]}"; do
@@ -132,7 +127,7 @@ for entry in "${env_vars[@]}"; do
     if [[ -n "${!var:-}" ]]; then
         check_pass "${label} (${var} 설정됨)"
     else
-        check_warn "${label} (${var} 미설정) — 해당 모델 사용 불가"
+        check_warn "${label} (${var} 미설정) — openclaw onboard로 설정하세요"
     fi
 done
 
@@ -189,7 +184,7 @@ fi
 # P4: 설정 일원화 (S2) — 별도 브릿지 config가 없어야 함
 BRIDGE_CONFIG_FILES=$(find "${HARNESS_DIR}" -maxdepth 1 \( -name "bridge-config.*" -o -name "bridge.yaml" -o -name "bridge.json" -o -name "bridge.env" \) 2>/dev/null | wc -l | tr -d ' ')
 if [[ "${BRIDGE_CONFIG_FILES}" -eq 0 ]]; then
-    check_pass "브릿지 설정 일원화 (별도 config 없음, harness.yaml에 통합)"
+    check_pass "브릿지 설정 일원화 (별도 config 없음)"
 else
     check_fail "브릿지 설정 분리 발견 (${BRIDGE_CONFIG_FILES}개) — P4 위배"
 fi

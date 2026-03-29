@@ -104,13 +104,16 @@ check_file() {
     fi
 }
 
-check_file "${TARGET_DIR}/harness.yaml" "harness.yaml (마스터 설정)"
+check_file "${TARGET_DIR}/SKILL.md" "SKILL.md (스킬 정의)"
 check_file "${TARGET_DIR}/CATALOG.md" "CATALOG.md (카탈로그)"
 check_file "${TARGET_DIR}/agents/planner.md" "agents/planner.md"
 check_file "${TARGET_DIR}/agents/worker.md" "agents/worker.md"
 check_file "${TARGET_DIR}/agents/reviewer.md" "agents/reviewer.md"
+check_file "${TARGET_DIR}/agents/debugger.md" "agents/debugger.md"
+check_file "${TARGET_DIR}/agents/bridge.md" "agents/bridge.md"
 check_file "${TARGET_DIR}/routing/models.yaml" "routing/models.yaml"
 check_file "${TARGET_DIR}/routing/routing-rules.yaml" "routing/routing-rules.yaml"
+check_file "${TARGET_DIR}/routing/budget-profiles.yaml" "routing/budget-profiles.yaml"
 check_file "${TARGET_DIR}/orchestration/pipelines.yaml" "orchestration/pipelines.yaml"
 
 echo ""
