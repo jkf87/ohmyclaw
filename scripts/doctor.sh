@@ -140,7 +140,7 @@ done
 # 5. OpenClaw 연동 검사
 # ──────────────────────────────────────────────
 echo ""
-echo "[5/5] OpenClaw 연동 검사"
+echo "[5/6] OpenClaw 연동 검사"
 
 if command -v openclaw &>/dev/null; then
     check_pass "openclaw CLI 설치됨"
@@ -158,6 +158,64 @@ if [[ -L "${HOME}/.openclaw/harness" ]] || [[ -d "${HOME}/.openclaw/harness" ]];
     check_pass "하네스 설치됨 (~/.openclaw/harness/)"
 else
     check_warn "하네스 미설치 — install.sh 실행 필요"
+fi
+
+# ──────────────────────────────────────────────
+# 6. 브릿지 검사 (S2)
+# ──────────────────────────────────────────────
+echo ""
+echo "[6/6] 브릿지 검사"
+
+BRIDGE_SCRIPT="${HARNESS_DIR}/scripts/bridge.sh"
+BRIDGE_AGENT="${HARNESS_DIR}/agents/bridge.md"
+BRIDGE_STATE_DIR="${HARNESS_DIR}/state"
+
+if [[ -f "${BRIDGE_SCRIPT}" ]]; then
+    if [[ -x "${BRIDGE_SCRIPT}" ]]; then
+        check_pass "브릿지 스크립트 (scripts/bridge.sh)"
+    else
+        check_warn "브릿지 스크립트 — 실행 권한 없음"
+    fi
+else
+    check_fail "브릿지 스크립트 (scripts/bridge.sh) — 파일 누락!"
+fi
+
+if [[ -f "${BRIDGE_AGENT}" ]]; then
+    check_pass "브릿지 에이전트 정의 (agents/bridge.md)"
+else
+    check_fail "브릿지 에이전트 정의 (agents/bridge.md) — 파일 누락!"
+fi
+
+# P4: 설정 일원화 (S2) — 별도 브릿지 config가 없어야 함
+BRIDGE_CONFIG_FILES=$(find "${HARNESS_DIR}" -maxdepth 1 \( -name "bridge-config.*" -o -name "bridge.yaml" -o -name "bridge.json" -o -name "bridge.env" \) 2>/dev/null | wc -l | tr -d ' ')
+if [[ "${BRIDGE_CONFIG_FILES}" -eq 0 ]]; then
+    check_pass "브릿지 설정 일원화 (별도 config 없음, harness.yaml에 통합)"
+else
+    check_fail "브릿지 설정 분리 발견 (${BRIDGE_CONFIG_FILES}개) — P4 위배"
+fi
+
+# python3 의존성 (bridge.sh가 사용)
+if command -v python3 &>/dev/null; then
+    check_pass "python3 설치됨 (브릿지 상태 관리용)"
+else
+    check_warn "python3 미설치 — 브릿지 상태 관리 제한됨"
+fi
+
+# 브릿지 기능 테스트
+if [[ -x "${BRIDGE_SCRIPT}" ]] && command -v python3 &>/dev/null; then
+    TEST_DIR=$(mktemp -d)
+    TEST_STATE="${TEST_DIR}/bridge-state.json"
+    
+    # 상태 초기화 테스트
+    HARNESS_DIR="${HARNESS_DIR}" BRIDGE_STATE="${TEST_STATE}" "${BRIDGE_SCRIPT}" reset "doctor-test" solo > /dev/null 2>&1
+    
+    if [[ -f "${TEST_STATE}" ]] && grep -q "doctor-test" "${TEST_STATE}" 2>/dev/null; then
+        check_pass "브릿지 상태 초기화 동작"
+    else
+        check_warn "브릿지 상태 초기화 불가"
+    fi
+    
+    rm -rf "${TEST_DIR}"
 fi
 
 # ──────────────────────────────────────────────

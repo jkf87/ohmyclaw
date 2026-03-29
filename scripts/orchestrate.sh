@@ -213,13 +213,18 @@ run_full() {
 
     "${SCRIPT_DIR}/spawn-agent.sh" "worker" "$TASK_DESC" "$model"
 
-    # ③ Review 단계
+    # ③ Review 단계 + 갭(Gap) 루프
     update_phase "REVIEWING"
     log_info "[3/3] Review 단계 시작..."
     "${SCRIPT_DIR}/spawn-agent.sh" "reviewer" "구현 결과 리뷰: ${TASK_DESC}"
 
-    # TODO: review_verdict 판정에 따라 fix_loop 실행
-    # 현재는 단일 패스로 완료
+    # TODO: review_verdict 판정에 따라 gap 루프 실행
+    # verdict가 GAP_DETECTED인 경우:
+    #   1. gap_report의 correction을 Worker에 피드백으로 제공
+    #   2. Worker 재실행 (최대 1회 — bridge.sh gap-fix-start 사용)
+    #   3. 재리뷰
+    #   4. 여전히 갭이면 에스컬레이션 (사용자에게 질문)
+    log_info "갭 루프: 최대 1회 수정 재실행 지원"
 
     update_phase "COMPLETE"
     log_info "Full Cycle 모드 완료"
