@@ -131,24 +131,24 @@ bash scripts/bridge.sh gap-fix-start worker-1 gpt-5.3-codex
 
 | 카테고리 | LOW | MEDIUM | HIGH |
 |---------|-----|--------|------|
-| 코딩 (일반) | GLM-5-Turbo | GPT-5.4-Codex | GPT-5.4-Codex |
-| 코딩 (아키텍처) | GPT-5.4-Codex | GPT-5.4-Codex | GPT-5.4-Codex |
-| 한국어 NLP | GLM-5-Turbo | GLM-5 | GLM-5.1 |
-| 추론 | GLM-5-Turbo | GPT-5.4-Codex | GLM-5.1 |
-| 보안 | GPT-5.4-Codex | GPT-5.4-Codex | GPT-5.4-Codex |
-| 콘텐츠 생성 | GLM-5-Turbo | GLM-5 | GLM-5.1 |
+| 코딩 (일반) | GLM-5 Turbo | GPT-5.3 Codex | GPT-5.3 Codex |
+| 코딩 (아키텍처) | GPT-5.3 Codex | GPT-5.3 Codex | GPT-5.3 Codex |
+| 한국어 NLP | GLM-5 Turbo | GLM-5 | GLM-5.1 |
+| 추론 | GLM-5 Turbo | GPT-5.3 Codex | GLM-5.1 |
+| 보안 | GPT-5.3 Codex | GPT-5.3 Codex | GPT-5.3 Codex |
+| 콘텐츠 생성 | GLM-5 Turbo | GLM-5 | GLM-5.1 |
 
 ### 우선순위 규칙 (first-match)
 
 1. **P100** — 사용자 명시 오버라이드
 2. **P90** — 한국어 비율 >70% + NLP/콘텐츠 → GLM-5.1(고난도) / GLM-5(일반)
-3. **P85** — 한국어 비율 >50% + NLP/콘텐츠 → GLM-5-Turbo
-4. **P80** — 고복잡도 아키텍처 → GPT-5.4-Codex
+3. **P85** — 한국어 비율 >50% + NLP/콘텐츠 → GLM-5 Turbo
+4. **P80** — 고복잡도 아키텍처 → GPT-5.3 Codex
 5. **P75** — 고복잡도 추론/한국어 장문 → GLM-5.1
-6. **P70** — 보안 태스크 → GPT-5.4-Codex
-7. **P60** — 중간 이상 코딩/디버깅 → GPT-5.4-Codex
-8. **P50** — 저복잡도 → GLM-5-Turbo (비용 효율)
-9. **P0** — 기본 → GPT-5.4-Codex
+6. **P70** — 보안 태스크 → GPT-5.3 Codex
+7. **P60** — 중간 이상 코딩/디버깅 → GPT-5.3 Codex
+8. **P50** — 저복잡도 → GLM-5 Turbo (비용 효율)
+9. **P0** — 기본 → GPT-5.3 Codex
 
 ### 복잡도 측정 신호
 
@@ -162,9 +162,9 @@ bash scripts/bridge.sh gap-fix-start worker-1 gpt-5.3-codex
 
 | 용도 | 1순위 | 2순위 | 3순위 |
 |------|-------|-------|-------|
-| 코딩 | GPT-5.4-Codex | GLM-5.1 | GLM-5 |
-| 한국어 | GLM-5.1 | GLM-5 | GLM-5-Turbo |
-| 추론 | GLM-5.1 | GPT-5.4-Codex | GLM-5 |
+| 코딩 | GPT-5.3 Codex | GLM-5.1 | GLM-5 |
+| 한국어 | GLM-5.1 | GLM-5 | GLM-5 Turbo |
+| 추론 | GLM-5.1 | GPT-5.3 Codex | GLM-5 |
 
 ## 예산 프로파일
 
@@ -174,7 +174,7 @@ bash scripts/bridge.sh gap-fix-start worker-1 gpt-5.3-codex
 | `standard` | 2M | 100K | $10/일 | 팀/프로덕션 |
 | `full` | 무제한 | 500K | 무제한 | 엔터프라이즈 |
 
-**예산 초과 정책:** 80% 경고 → 95% GLM-5-Turbo 강제 다운그레이드 → 100% 신규 태스크 차단
+**예산 초과 정책:** 80% 경고 → 95% GLM-5 Turbo 강제 다운그레이드 → 100% 신규 태스크 차단
 
 ## 파이프라인 모드
 
@@ -184,7 +184,7 @@ bash scripts/bridge.sh gap-fix-start worker-1 gpt-5.3-codex
 | `parallel` | 독립 태스크 2~3개 | Work(병렬) → Review | 3 |
 | `full` | 태스크 4개+ or 의존성 있음 or 고복잡도 | Plan → Work(병렬) → Review | 5 |
 
-**동시 실행:** GPT-5.4-Codex 최대 3개, GLM-5-Turbo 최대 7개, GLM-5.1은 고비용/고성능 슬롯로 취급 권장
+**동시 실행:** GPT-5.3 Codex 최대 3개, GLM-5 Turbo 최대 7개, GLM-5.1은 고비용/고성능 슬롯로 취급 권장
 
 ### 상태 머신
 
@@ -246,7 +246,7 @@ harness/
 
 ## GLM 가입 및 인증
 
-하네스의 GLM 계열 모델(GLM-5-Turbo, GLM-5, GLM-5.1)을 사용하려면 Z.ai 구독이 필요합니다.
+하네스의 GLM 계열 모델(GLM-5 Turbo, GLM-5, GLM-5.1)을 사용하려면 Z.ai 구독이 필요합니다.
 
 **가입:** https://z.ai/subscribe?ic=OTYO9JPFNV ($10/월, Claude Code/Cline 등 20+ 코딩 툴 지원)
 
