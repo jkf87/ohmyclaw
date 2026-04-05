@@ -33,10 +33,25 @@ detect_korean_ratio() {
     local total_chars
     local korean_chars
 
-    # 공백 제거 후 전체 문자 수
-    total_chars=$(printf '%s' "$text" | tr -d '[:space:]' | wc -c | xargs)
-    # 한글 문자 수 (UTF-8 한글 범위 — macOS grep 호환: LC_ALL=C + byte match)
-    korean_chars=$(printf '%s' "$text" | LC_ALL=C grep -o '[가-힣]' 2>/dev/null | wc -l | xargs || echo "0")
+    # UTF-8 문자를 정확히 세기 위해 python3를 우선 사용한다.
+    # python3가 없으면 기존 바이트 기반 계산으로 폴백한다.
+    if command -v python3 >/dev/null 2>&1; then
+        local counts
+        counts=$(TEXT="$text" python3 <<'PY'
+import os, re
+text = os.environ.get("TEXT", "")
+stripped = re.sub(r"\s+", "", text)
+total = len(stripped)
+korean = len(re.findall(r"[가-힣]", stripped))
+print(f"{total} {korean}")
+PY
+)
+        total_chars=$(printf '%s' "$counts" | awk '{print $1}')
+        korean_chars=$(printf '%s' "$counts" | awk '{print $2}')
+    else
+        total_chars=$(printf '%s' "$text" | tr -d '[:space:]' | wc -c | xargs)
+        korean_chars=$(printf '%s' "$text" | LC_ALL=C grep -o '[가-힣]' 2>/dev/null | wc -l | xargs || echo "0")
+    fi
 
     if [[ "$total_chars" -eq 0 ]]; then
         echo "0.0"
@@ -245,6 +260,10 @@ resolve_model() {
         debugging_LOW)          echo "glm-5-turbo" ;;
         debugging_MEDIUM)       echo "gpt-5.3-codex" ;;
         debugging_HIGH)         echo "gpt-5.3-codex" ;;
+
+        reasoning_LOW)          echo "glm-5-turbo" ;;
+        reasoning_MEDIUM)       echo "gpt-5.3-codex" ;;
+        reasoning_HIGH)         echo "glm-5.1" ;;
 
         content_creation_LOW)   echo "glm-5-turbo" ;;
         content_creation_MEDIUM) echo "glm-5" ;;

@@ -68,6 +68,16 @@ SESSION_TYPE="${SESSION_TYPE:-isolated}"
 TIMEOUT_MS="${TIMEOUT_MS:-300000}"
 MAX_TOKENS="${MAX_TOKENS:-32000}"
 
+default_model_for_tier() {
+    local tier="$1"
+    case "$tier" in
+        LOW)    echo "glm-5-turbo" ;;
+        MEDIUM) echo "gpt-5.3-codex" ;;
+        HIGH)   echo "glm-5.1" ;;
+        *)      echo "gpt-5.3-codex" ;;
+    esac
+}
+
 if [[ -n "$MODEL_OVERRIDE" ]]; then
     SELECTED_MODEL="$MODEL_OVERRIDE"
 else
@@ -75,17 +85,20 @@ else
     if [[ -n "$AGENT_MODEL_OVERRIDE" ]] && [[ "$AGENT_MODEL_OVERRIDE" != "null" ]]; then
         SELECTED_MODEL="$AGENT_MODEL_OVERRIDE"
     else
-        ROUTING_RESULT=$("${SCRIPT_DIR}/route-task.sh" "$TASK_DESC" "auto" "standard" 2>/dev/null || true)
-        if [[ -n "$ROUTING_RESULT" ]]; then
-            SELECTED_MODEL=$(echo "$ROUTING_RESULT" | grep "model:" | head -1 | sed 's/.*model:[[:space:]]*//' | xargs)
-        else
-            case "$MODEL_TIER" in
-                LOW)    SELECTED_MODEL="glm-5-turbo" ;;
-                MEDIUM) SELECTED_MODEL="gpt-5.3-codex" ;;
-                HIGH)   SELECTED_MODEL="glm-5.1" ;;
-                *)      SELECTED_MODEL="gpt-5.3-codex" ;;
-            esac
-        fi
+        # Planner/Reviewer/Bridge는 역할 특성이 강해서 태스크 문장보다 에이전트 tier를 우선한다.
+        case "$AGENT_NAME" in
+            planner|reviewer|bridge)
+                SELECTED_MODEL=$(default_model_for_tier "$MODEL_TIER")
+                ;;
+            *)
+                ROUTING_RESULT=$("${SCRIPT_DIR}/route-task.sh" "$TASK_DESC" "auto" "standard" 2>/dev/null || true)
+                if [[ -n "$ROUTING_RESULT" ]]; then
+                    SELECTED_MODEL=$(echo "$ROUTING_RESULT" | grep "model:" | head -1 | sed 's/.*model:[[:space:]]*//' | xargs)
+                else
+                    SELECTED_MODEL=$(default_model_for_tier "$MODEL_TIER")
+                fi
+                ;;
+        esac
     fi
 fi
 

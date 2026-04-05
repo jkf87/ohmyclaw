@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # OpenClaw 하네스 — 설치 스크립트
-# harness/ 디렉토리를 ~/.openclaw/harness/에 복사 또는 심볼릭 링크
+# harness/ 디렉토리를 ~/.openclaw/skills/harness/에 복사 또는 심볼릭 링크
 # 사용법: ./install.sh [--link | --copy]
 set -euo pipefail
 
@@ -8,7 +8,7 @@ set -euo pipefail
 # 설정
 # ──────────────────────────────────────────────
 SOURCE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_DIR="${HOME}/.openclaw/harness"
+TARGET_DIR="${HOME}/.openclaw/skills/harness"
 INSTALL_MODE="${1:---link}"  # --link (기본) 또는 --copy
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -24,14 +24,14 @@ echo ""
 # 사전 검사
 # ──────────────────────────────────────────────
 
-# ~/.openclaw/ 디렉토리 존재 확인
-if [[ ! -d "${HOME}/.openclaw" ]]; then
-    echo "[경고] ~/.openclaw/ 디렉토리가 없습니다."
+# ~/.openclaw/skills 디렉토리 존재 확인
+if [[ ! -d "${HOME}/.openclaw/skills" ]]; then
+    echo "[경고] ~/.openclaw/skills 디렉토리가 없습니다."
     echo "  OpenClaw이 설치되어 있는지 확인하세요."
     read -rp "  디렉토리를 생성하시겠습니까? (y/N) " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        mkdir -p "${HOME}/.openclaw"
-        echo "  ~/.openclaw/ 생성됨"
+        mkdir -p "${HOME}/.openclaw/skills"
+        echo "  ~/.openclaw/skills 생성됨"
     else
         echo "  설치를 취소합니다."
         exit 1

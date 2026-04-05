@@ -185,15 +185,23 @@ action_complete() {
 import json, sys
 with open('${BRIDGE_STATE}', 'r') as f:
     state = json.load(f)
-if '${agent_id}' in state['agents']:
-    agent = state['agents']['${agent_id}']
-    elapsed = ${epoch} - agent.get('started_epoch', ${epoch})
-    agent['status'] = 'completed'
-    agent['completed_at'] = '${timestamp}'
-    agent['elapsed_sec'] = elapsed
-    agent['summary'] = '''${summary}'''
-    state['progress']['completed'] = sum(1 for a in state['agents'].values() if a['status'] == 'completed')
-    state['notifications']['sent'] += 1
+agent = state['agents'].setdefault('${agent_id}', {
+    'status': 'running',
+    'model': 'unknown',
+    'started_at': '${timestamp}',
+    'started_epoch': ${epoch},
+    'completed_at': None,
+    'summary': None,
+    'error': None,
+})
+elapsed = ${epoch} - agent.get('started_epoch', ${epoch})
+agent['status'] = 'completed'
+agent['completed_at'] = '${timestamp}'
+agent['elapsed_sec'] = elapsed
+agent['summary'] = '''${summary}'''
+state['progress']['total'] = len(state['agents'])
+state['progress']['completed'] = sum(1 for a in state['agents'].values() if a['status'] == 'completed')
+state['notifications']['sent'] += 1
 state['last_updated'] = '${timestamp}'
 with open('${tmp_file}', 'w') as f:
     json.dump(state, f, indent=2)
@@ -211,9 +219,13 @@ with open('${tmp_file}', 'w') as f:
     total=$(python3 -c "import json; d=json.load(open('${BRIDGE_STATE}')); print(d['progress']['total'])" 2>/dev/null || echo "1")
     elapsed=$(python3 -c "import json; d=json.load(open('${BRIDGE_STATE}')); a=d['agents'].get('${agent_id}',{}); print(a.get('elapsed_sec','?'))" 2>/dev/null || echo "?")
     model=$(python3 -c "import json; d=json.load(open('${BRIDGE_STATE}')); a=d['agents'].get('${agent_id}',{}); print(a.get('model','?'))" 2>/dev/null || echo "?")
-    pct=$(( completed * 100 / total ))
+    if [[ "$total" -gt 0 ]]; then
+        pct=$(( completed * 100 / total ))
+    else
+        pct=0
+    fi
     
-    if [[ $completed -lt $total ]]; then
+    if [[ "$completed" -gt 0 ]] && [[ $completed -lt $total ]]; then
         remaining=$(( (total - completed) * elapsed / completed ))
         remaining="${remaining}초"
     else
@@ -245,16 +257,24 @@ action_fail() {
 import json, sys
 with open('${BRIDGE_STATE}', 'r') as f:
     state = json.load(f)
-if '${agent_id}' in state['agents']:
-    agent = state['agents']['${agent_id}']
-    elapsed = ${epoch} - agent.get('started_epoch', ${epoch})
-    agent['status'] = 'failed'
-    agent['completed_at'] = '${timestamp}'
-    agent['elapsed_sec'] = elapsed
-    agent['error'] = '''${error}'''
-    state['progress']['failed'] = sum(1 for a in state['agents'].values() if a['status'] == 'failed')
-    state['progress']['completed'] = sum(1 for a in state['agents'].values() if a['status'] in ('completed', 'failed'))
-    state['notifications']['sent'] += 1
+agent = state['agents'].setdefault('${agent_id}', {
+    'status': 'running',
+    'model': 'unknown',
+    'started_at': '${timestamp}',
+    'started_epoch': ${epoch},
+    'completed_at': None,
+    'summary': None,
+    'error': None,
+})
+elapsed = ${epoch} - agent.get('started_epoch', ${epoch})
+agent['status'] = 'failed'
+agent['completed_at'] = '${timestamp}'
+agent['elapsed_sec'] = elapsed
+agent['error'] = '''${error}'''
+state['progress']['total'] = len(state['agents'])
+state['progress']['failed'] = sum(1 for a in state['agents'].values() if a['status'] == 'failed')
+state['progress']['completed'] = sum(1 for a in state['agents'].values() if a['status'] in ('completed', 'failed'))
+state['notifications']['sent'] += 1
 state['last_updated'] = '${timestamp}'
 with open('${tmp_file}', 'w') as f:
     json.dump(state, f, indent=2)
