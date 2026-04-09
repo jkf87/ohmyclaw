@@ -106,16 +106,17 @@ fi
 model_to_pool() {
     local model="$1"
     case "$model" in
-        glm-*|zai-*)              echo "zai" ;;
-        gpt-*|codex-*|openai-*)   echo "openai" ;;
-        *)                        echo "" ;;
+        gpt-*|codex-*|openai-*|o1-*|o3-*|o4-*) echo "codex" ;;
+        glm-*|zai-*)                            echo "zai" ;;
+        *)                                      echo "" ;;
     esac
 }
 
-# ── 계정 풀에서 토큰 선택 (round-robin) ──
+# ── 계정 풀에서 계정 선택 (round-robin) ──
 SELECTED_POOL=""
 SELECTED_ACCOUNT=""
-SELECTED_ENV_KEY=""
+SELECTED_AUTH_TYPE=""
+SELECTED_AUTH_VALUE=""
 ACCOUNT_POOL_STATUS="skipped"
 
 POOL_NAME=$(model_to_pool "$SELECTED_MODEL")
@@ -125,9 +126,20 @@ if [[ -n "$POOL_NAME" ]] && [[ -x "$POOL_SCRIPT" ]]; then
     POOL_OUTPUT=$("$POOL_SCRIPT" next "$POOL_NAME" 2>&1 || true)
     if echo "$POOL_OUTPUT" | grep -q "account_id:"; then
         SELECTED_POOL="$POOL_NAME"
-        SELECTED_ACCOUNT=$(echo "$POOL_OUTPUT" | grep 'account_id:' | sed 's/.*: //' | xargs)
-        SELECTED_ENV_KEY=$(echo "$POOL_OUTPUT" | grep 'env_key:' | sed 's/.*: //' | xargs)
+        SELECTED_ACCOUNT=$(echo "$POOL_OUTPUT" | grep 'account_id:'  | sed 's/.*: //' | xargs)
+        SELECTED_AUTH_TYPE=$(echo "$POOL_OUTPUT" | grep 'auth_type:'  | sed 's/.*: //' | xargs)
+        SELECTED_AUTH_VALUE=$(echo "$POOL_OUTPUT" | grep 'auth_value:' | sed 's/.*: //' | xargs)
         ACCOUNT_POOL_STATUS="selected"
+
+        # OAuth 계정 → 다음 단계가 사용할 수 있도록 환경변수 export
+        case "$SELECTED_AUTH_TYPE" in
+            oauth_codex)
+                export CODEX_HOME="$SELECTED_AUTH_VALUE"
+                ;;
+            oauth_openclaw)
+                export OPENCLAW_PROFILE="$SELECTED_AUTH_VALUE"
+                ;;
+        esac
     elif echo "$POOL_OUTPUT" | grep -q "all_accounts_in_cooldown"; then
         SELECTED_POOL="$POOL_NAME"
         ACCOUNT_POOL_STATUS="all_cooldown"
@@ -163,7 +175,7 @@ echo "  세션 유형: ${SESSION_TYPE}"
 echo "  타임아웃: $((TIMEOUT_MS / 1000))초"
 echo "  최대 토큰: ${MAX_TOKENS}"
 if [[ -n "$SELECTED_ACCOUNT" ]]; then
-    echo "  계정 풀: ${SELECTED_POOL} → ${SELECTED_ACCOUNT} (env=${SELECTED_ENV_KEY})"
+    echo "  계정 풀: ${SELECTED_POOL} → ${SELECTED_ACCOUNT} (${SELECTED_AUTH_TYPE}=${SELECTED_AUTH_VALUE})"
 elif [[ -n "$SELECTED_POOL" ]]; then
     echo "  계정 풀: ${SELECTED_POOL} → ${ACCOUNT_POOL_STATUS}"
 fi
@@ -184,7 +196,8 @@ if [[ -n "$SELECTED_POOL" ]]; then
 fi
 if [[ -n "$SELECTED_ACCOUNT" ]]; then
     echo "  account_id: ${SELECTED_ACCOUNT}"
-    echo "  env_key: ${SELECTED_ENV_KEY}"
+    echo "  auth_type: ${SELECTED_AUTH_TYPE}"
+    echo "  auth_value: ${SELECTED_AUTH_VALUE}"
 fi
 echo "  status: simulated"
 echo "  context_preview: |"

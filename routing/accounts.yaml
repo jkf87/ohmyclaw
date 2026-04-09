@@ -1,15 +1,20 @@
-# OpenClaw 하네스 — 계정 풀 설정 (OAuth Round-Robin)
-# 동일 프로바이더에 대해 여러 계정/토큰을 풀로 관리하여
-# rate limit을 분산하고 가용성을 높입니다.
+# OpenClaw 하네스 — 계정 풀 설정 (OAuth 우선)
+# 여러 OAuth 계정을 풀로 관리하여 rate limit 분산 및 가용성 향상.
 #
-# 사용법:
-#   1. 계정 추가: pools.<provider>.accounts 아래에 env_key 설정
-#   2. 전략 선택: round_robin (순차) 또는 fan_out (동시 호출)
-#   3. 쿨다운: rate limit/인증 오류 시 자동 백오프
+# 인증 방식 (auth_type):
+#   oauth_codex      → codex_home 경로 (예: ~/.codex, ~/.codex-acct2)
+#                       해당 디렉토리에 auth.json 이 있어야 사용 가능
+#   oauth_openclaw   → openclaw_profile 이름 (예: default → ~/.openclaw,
+#                       acct2 → ~/.openclaw-acct2)
+#   api_key          → env_key 환경변수 (레거시, z.ai 같은 OAuth 미지원 프로바이더용)
 #
-# ⚠️ 주의: 실제 토큰은 환경변수에 저장하세요
+# 추가 계정 등록:
+#   1) 새 OAuth 디렉토리에서 로그인:
+#        CODEX_HOME=~/.codex-acct2 codex login
+#   2) 아래 accounts 리스트에 항목 추가
+#   3) ./scripts/account-pool-demo.sh 로 검증
 
-version: "1.0"
+version: "1.1"
 
 # ──────────────────────────────────────────────
 # 글로벌 설정
@@ -20,53 +25,59 @@ pool_defaults:
   max_cooldown_seconds: 600      # 최대 쿨다운 (지수 백오프 상한)
   backoff_multiplier: 2          # 연속 오류 시 쿨다운 배수
   health_check_interval: 300     # 계정 상태 체크 간격 (초)
-  fan_out_timeout: 30            # fan_out 모드에서 최대 대기 시간 (초)
+  fan_out_timeout: 30            # fan_out 모드 최대 대기 시간 (초)
   state_file: "state/account-pool-state.json"
 
 # ──────────────────────────────────────────────
 # 프로바이더별 계정 풀
 # ──────────────────────────────────────────────
 pools:
-  # ── Z.ai (GLM 시리즈) ──
+  # ── Codex (OpenAI) — OAuth 전용 ──
+  codex:
+    base_url: https://api.openai.com/v1
+    strategy: round_robin
+    accounts:
+      - id: codex-primary
+        auth_type: oauth_codex
+        codex_home: ~/.codex
+        weight: 10
+        enabled: true
+
+      # 두 번째 OAuth 계정 (활성화 전 ~/.codex-acct2 에 codex login 먼저 수행)
+      - id: codex-secondary
+        auth_type: oauth_codex
+        codex_home: ~/.codex-acct2
+        weight: 10
+        enabled: true
+
+  # ── Z.ai (GLM 시리즈) — OAuth 미지원, API 키 사용 ──
   zai:
     base_url: https://api.z.ai/v1
     strategy: round_robin
     accounts:
       - id: zai-primary
+        auth_type: api_key
         env_key: ZAI_API_KEY
         weight: 10
         enabled: true
 
       - id: zai-secondary
+        auth_type: api_key
         env_key: ZAI_API_KEY_2
         weight: 5
         enabled: true
 
-  # ── OpenAI (GPT-5.3-Codex) ──
-  openai:
-    base_url: https://api.openai.com/v1
-    strategy: round_robin
-    accounts:
-      - id: openai-primary
-        env_key: OPENAI_API_KEY
-        weight: 10
-        enabled: true
-
-      - id: openai-secondary
-        env_key: OPENAI_API_KEY_2
-        weight: 5
-        enabled: true
-
-  # ── fan_out 예제 (rate limit 분산이 핵심일 때) ──
-  # zai-fanout:
-  #   base_url: https://api.z.ai/v1
+  # ── fan_out 예제 (대용량 분산이 핵심일 때) ──
+  # codex-fanout:
   #   strategy: fan_out
   #   accounts:
-  #     - id: zai-fan-1
-  #       env_key: ZAI_API_KEY
+  #     - id: codex-fan-1
+  #       auth_type: oauth_codex
+  #       codex_home: ~/.codex
   #       weight: 10
   #       enabled: true
-  #     - id: zai-fan-2
-  #       env_key: ZAI_API_KEY_2
+  #     - id: codex-fan-2
+  #       auth_type: oauth_codex
+  #       codex_home: ~/.codex-acct2
   #       weight: 10
   #       enabled: true

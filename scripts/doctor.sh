@@ -118,22 +118,28 @@ done
 # 4. 환경 변수 검사
 # ──────────────────────────────────────────────
 echo ""
-echo "[4/7] 환경 변수 검사"
+echo "[4/7] 인증 자격 검사"
 
-env_vars=(
-    "ZAI_API_KEY:Z.ai API 키 (GLM-5 시리즈) — openclaw onboard로 OAuth 설정"
-    "OPENAI_API_KEY:OpenAI API 키 (GPT-5.3 Codex) — openclaw onboard로 OAuth 설정"
-)
+# Z.ai (API 키 — OAuth 미지원)
+if [[ -n "${ZAI_API_KEY:-}" ]]; then
+    check_pass "Z.ai API 키 (ZAI_API_KEY 설정됨)"
+else
+    check_warn "Z.ai API 키 (ZAI_API_KEY 미설정) — z.ai 콘솔에서 발급"
+fi
 
-for entry in "${env_vars[@]}"; do
-    var="${entry%%:*}"
-    label="${entry#*:}"
-    if [[ -n "${!var:-}" ]]; then
-        check_pass "${label} (${var} 설정됨)"
-    else
-        check_warn "${label} (${var} 미설정) — openclaw onboard로 설정하세요"
-    fi
-done
+# Codex OAuth (~/.codex/auth.json)
+if [[ -f "${HOME}/.codex/auth.json" ]]; then
+    check_pass "Codex OAuth (~/.codex/auth.json 존재)"
+else
+    check_warn "Codex OAuth 미로그인 — codex login 실행 필요"
+fi
+
+# 추가 Codex OAuth 계정 (선택)
+if [[ -f "${HOME}/.codex-acct2/auth.json" ]]; then
+    check_pass "Codex OAuth 보조 계정 (~/.codex-acct2/auth.json)"
+else
+    check_warn "Codex OAuth 보조 계정 없음 — 'CODEX_HOME=~/.codex-acct2 codex login' 으로 추가 가능"
+fi
 
 # ──────────────────────────────────────────────
 # 5. OpenClaw 연동 검사
