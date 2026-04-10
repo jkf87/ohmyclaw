@@ -161,3 +161,203 @@ failure_policy:
     review_loop:
       max_fix_attempts: 3
       on_exhaustion: escalate
+
+# ══════════════════════════════════════════════════════════════
+# 알림 / 훅 (OMX OpenClaw Integration Contract 호환)
+# 참조: https://github.com/Yeachan-Heo/oh-my-codex
+#       docs/openclaw-integration.md (공식 통합 가이드)
+#       docs/openclaw-integration.ko.md (한국어 요약본)
+#
+# 목적: 본 harness 의 상태 머신 전이를 OMX 호환 lifecycle hook 으로
+#       발신한다. OMX 용으로 구성된 OpenClaw 게이트웨이(HTTP/command)
+#       를 본 harness 가 그대로 재사용할 수 있도록 한다.
+#
+# Precedence Contract (OMX 규약):
+#   1) notifications.openclaw 가 이김
+#   2) custom_webhook_command / custom_cli_command 는 충돌 시 무시
+#   3) 충돌 감지 시 경고 로그 기록
+# ══════════════════════════════════════════════════════════════
+notifications:
+  enabled: true
+  verbosity: session               # minimal | session | verbose (권장: session)
+
+  # ──────────────────────────────────────────────
+  # 활성 게이트 (OMX docs: "Activation gates")
+  # harness 는 다음 env 가 모두 참일 때만 notifications.openclaw 를 발신
+  # ──────────────────────────────────────────────
+  activation_gates:
+    OMX_OPENCLAW: "1"                          # 필수 — OpenClaw dispatch 활성
+    OMX_OPENCLAW_COMMAND: "1"                  # command gateway 사용 시 필수
+    HOOKS_TOKEN: "${HOOKS_TOKEN}"              # Bearer 토큰 (env 주입 권장)
+    OMX_OPENCLAW_COMMAND_TIMEOUT_MS: 120000    # command gateway 기본 타임아웃
+
+  # ──────────────────────────────────────────────
+  # 게이트웨이 정의 (OMX docs: Option A / Option C)
+  # ──────────────────────────────────────────────
+  openclaw:
+    enabled: true
+    gateways:
+      # Option A — HTTP 게이트웨이 (기본/가벼운 운영)
+      local_http:
+        type: http
+        url: http://127.0.0.1:18789/hooks/agent
+        headers:
+          Authorization: "Bearer ${HOOKS_TOKEN}"
+        timeout_ms: 120000
+
+      # Option C — clawdbot agent command (권장: dev/omc-dev 채널)
+      # OMX docs: "Clawdbot agent-command workflow"
+      local_command:
+        type: command
+        command: >-
+          (clawdbot agent --session-id harness-hooks
+            --message {{instruction}}
+            --thinking minimal
+            --deliver
+            --reply-channel discord
+            --reply-to 'channel:${OMC_DEV_CHANNEL_ID}'
+            --timeout 120
+            --json
+            >>/tmp/harness-openclaw-agent.jsonl 2>&1 || true)
+        timeout_ms: 120000
+        notes:
+          - "|| true : clawdbot 실패가 harness 세션을 차단하지 않도록 보호"
+          - ">>.jsonl append : 구조화 로그 유지"
+          - "--reply-to 'channel:ID' : 채널 별칭 대신 ID 사용 권장"
+
+    # ──────────────────────────────────────────────
+    # 상태 머신 전이 → OMX hook 이벤트 매핑
+    # state_machine 의 각 전이 시점에 해당 훅을 자동 발신한다.
+    # ──────────────────────────────────────────────
+    state_to_hook:
+      on_enter_PLANNING:   session-start
+      on_enter_WORKING:    null                # 내부 이벤트 → 배치 알림으로 위임
+      on_enter_REVIEWING:  null
+      on_enter_FIXING:     null
+      on_enter_COMPLETE:   session-end
+      on_enter_ESCALATED:  ask-user-question
+      on_session_stop:     stop                # 사용자 취소 / 수동 중단
+      on_agent_idle_60s:   session-idle        # bridge.sh 의 idle 감지
+
+    # ──────────────────────────────────────────────
+    # 훅 정의 (OMX 스키마: enabled + gateway + instruction)
+    # instruction 은 Korean-first 구조화 포맷.
+    # 템플릿 변수: {{sessionId}} {{tmuxSession}} {{projectName}}
+    #              {{cycleId}} {{question}} {{reason}} {{event}}
+    # ──────────────────────────────────────────────
+    hooks:
+      session-start:
+        enabled: true
+        gateway: local_command
+        instruction: |-
+          [session-start|exec]
+          project={{projectName}} session={{sessionId}} cycle={{cycleId}} tmux={{tmuxSession}}
+          요약: 시작 맥락 1문장
+          우선순위: 지금 할 일 1~2개
+          주의사항: 리스크/의존성(없으면 없음)
+
+      session-idle:
+        enabled: true
+        gateway: local_command
+        trigger: "agent idle > 60s (bridge.sh)"
+        instruction: |-
+          [session-idle|exec]
+          session={{sessionId}} tmux={{tmuxSession}}
+          요약: idle 원인 1문장
+          복구계획: 즉시 조치 1~2개
+          의사결정: 사용자 입력 필요 여부
+
+      ask-user-question:
+        enabled: true
+        gateway: local_command
+        trigger: "on_enter_ESCALATED | reviewer GAP 2회 소진"
+        instruction: |-
+          [ask-user-question|exec]
+          session={{sessionId}} tmux={{tmuxSession}} question={{question}}
+          핵심질문: 필요한 답변 1문장
+          영향: 미응답 시 영향 1문장
+          권장응답: 가장 빠른 답변 형태
+
+      stop:
+        enabled: true
+        gateway: local_command
+        trigger: "on_session_stop (사용자 취소 / 수동 중단)"
+        instruction: |-
+          [session-stop|exec]
+          session={{sessionId}} tmux={{tmuxSession}}
+          요약: 중단 사유
+          현재상태: 저장/미완료 항목
+          재개: 첫 액션 1개
+
+      session-end:
+        enabled: true
+        gateway: local_command
+        trigger: "on_enter_COMPLETE"
+        instruction: |-
+          [session-end|exec]
+          project={{projectName}} session={{sessionId}} tmux={{tmuxSession}} reason={{reason}}
+          성과: 완료 결과 1~2문장
+          검증: 확인/테스트 결과
+          다음: 후속 액션 1~2개
+
+  # ──────────────────────────────────────────────
+  # 사전 점검 (OMX docs: "Preflight checks")
+  # bash scripts/doctor.sh 에서 호출
+  # ──────────────────────────────────────────────
+  preflight:
+    - name: hooks_token_present
+      cmd: "test -n \"$HOOKS_TOKEN\""
+      on_fail: "HOOKS_TOKEN 이 설정되지 않음 — shell profile 에 export 필요"
+    - name: gateway_reachable
+      cmd: "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18789 | grep -qE '^(2|3|4)0[0-9]$'"
+      on_fail: "127.0.0.1:18789 도달 불가 — OpenClaw 게이트웨이 미기동 또는 포트 다름"
+    - name: omx_openclaw_gate
+      cmd: "test \"$OMX_OPENCLAW\" = \"1\""
+      on_fail: "export OMX_OPENCLAW=1 필요"
+    - name: omx_openclaw_command_gate
+      cmd: "test \"$OMX_OPENCLAW_COMMAND\" = \"1\""
+      on_fail: "command gateway 사용 시 export OMX_OPENCLAW_COMMAND=1 필요"
+
+  # ──────────────────────────────────────────────
+  # 검증 커맨드 (OMX docs: "Verification (required)")
+  # ──────────────────────────────────────────────
+  verification:
+    wake_smoke:
+      path: /hooks/wake
+      expect: '"ok":true'
+      cmd: |-
+        curl -sS -X POST http://127.0.0.1:18789/hooks/wake \
+          -H "Authorization: Bearer ${HOOKS_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d '{"text":"harness wake smoke test","mode":"now"}'
+    delivery:
+      path: /hooks/agent
+      expect: HTTP_2xx
+      cmd: |-
+        curl -sS -o /tmp/harness-openclaw-check.json -w "HTTP %{http_code}\n" \
+          -X POST http://127.0.0.1:18789/hooks/agent \
+          -H "Authorization: Bearer ${HOOKS_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d '{"message":"harness delivery verification","instruction":"harness delivery verification","event":"session-end","sessionId":"manual-check"}'
+
+  # ──────────────────────────────────────────────
+  # Pass/Fail 진단 (OMX docs 근거)
+  # ──────────────────────────────────────────────
+  diagnostics:
+    "401|403": "invalid/missing bearer token → HOOKS_TOKEN 재확인"
+    "404":     "잘못된 경로 — /hooks/agent, /hooks/wake 확인"
+    "5xx":     "gateway 런타임 오류 — OpenClaw 로그 점검"
+    "timeout": "네트워크/방화벽 문제 — 127.0.0.1:18789 접근성 확인"
+    "command_gateway_disabled": "OMX_OPENCLAW=1 AND OMX_OPENCLAW_COMMAND=1 둘 다 필요"
+    "SIGTERM":  "gateways.<name>.timeout_ms 상향 (clawdbot agent: 120000 권장)"
+    "session_blocked_on_hook_fail": "command 마지막에 || true 추가 필수"
+    "missing_logs": ".jsonl + >> 로 구조화 로그 유지"
+    "discord_delivery_fail": "--reply-to 'channel:ID' 형식 사용 (alias 비권장)"
+
+  # ──────────────────────────────────────────────
+  # Precedence Contract (OMX 공식)
+  # ──────────────────────────────────────────────
+  precedence:
+    explicit_openclaw_wins: true
+    ignore_generic_on_conflict: true
+    emit_warning_on_conflict: true
