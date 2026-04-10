@@ -1,0 +1,197 @@
+{
+  "$schema": "https://openclaw.ai/schemas/skill-routing.json",
+  "version": "1.0.0",
+  "comment": "Single source of truth for Z.ai Coding Plan routing. Read by select-model.sh and referenced by SKILL.md.",
+
+  "models": {
+    "glm-5-turbo": {
+      "displayName": "GLM-5 Turbo",
+      "tier": "LOW",
+      "contextWindow": 128000,
+      "maxTokens": 131100,
+      "scores": { "coding": 70, "reasoning": 60, "korean": 95 },
+      "reasoningMode": false,
+      "anthropicAlias": "haiku",
+      "plans": ["lite", "pro", "max"]
+    },
+    "glm-5": {
+      "displayName": "GLM-5",
+      "tier": "MEDIUM",
+      "contextWindow": 128000,
+      "maxTokens": 131100,
+      "scores": { "coding": 88, "reasoning": 82, "korean": 95 },
+      "reasoningMode": true,
+      "anthropicAlias": "sonnet",
+      "plans": ["lite", "pro", "max"]
+    },
+    "glm-5.1": {
+      "displayName": "GLM-5.1",
+      "tier": "HIGH",
+      "contextWindow": 204800,
+      "maxTokens": 131100,
+      "scores": { "coding": 95, "reasoning": 95, "korean": 96 },
+      "reasoningMode": true,
+      "anthropicAlias": "opus",
+      "plans": ["pro", "max"],
+      "note": "Lite 플랜에서는 사용 불가. select-model.sh 가 자동 강등."
+    },
+    "gpt-5.4": {
+      "displayName": "GPT-5.4",
+      "tier": "HIGH",
+      "contextWindow": 256000,
+      "maxTokens": 131072,
+      "scores": { "coding": 97, "reasoning": 97, "korean": 72 },
+      "reasoningMode": true,
+      "auth": "oauth_codex",
+      "plans": ["oauth"],
+      "note": "ChatGPT Plus/Pro 구독 OAuth 보유 시에만. codex_oauth_enabled=true 일 때 활성."
+    }
+  },
+
+  "plans": {
+    "lite": {
+      "priceUsdMonth": 3,
+      "allowedModels": ["glm-5-turbo", "glm-5"],
+      "blockedModels": ["glm-5.1"],
+      "quota": {
+        "dailyTokens": 1500000,
+        "sessionTokens": 300000,
+        "taskTokens": 60000,
+        "dailyRequests": 600
+      },
+      "concurrency": { "maxWorkers": 2, "maxTotalSessions": 3 },
+      "fixLoopMaxIterations": 2,
+      "pipelineModes": ["solo", "parallel"]
+    },
+    "pro": {
+      "priceUsdMonth": 15,
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-5.1"],
+      "blockedModels": [],
+      "quota": {
+        "dailyTokens": 8000000,
+        "sessionTokens": 1500000,
+        "taskTokens": 200000,
+        "dailyRequests": 3000
+      },
+      "concurrency": { "maxWorkers": 4, "maxTotalSessions": 6 },
+      "fixLoopMaxIterations": 3,
+      "pipelineModes": ["solo", "parallel", "full"]
+    },
+    "max": {
+      "priceUsdMonth": 30,
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-5.1"],
+      "blockedModels": [],
+      "quota": {
+        "dailyTokens": 25000000,
+        "sessionTokens": 5000000,
+        "taskTokens": 500000,
+        "dailyRequests": 12000
+      },
+      "concurrency": { "maxWorkers": 7, "maxTotalSessions": 12 },
+      "prioritySlot": true,
+      "fixLoopMaxIterations": 4,
+      "pipelineModes": ["solo", "parallel", "full"]
+    }
+  },
+
+  "matrix": {
+    "lite": {
+      "coding_general":   { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "coding_arch":      { "LOW": "glm-5",       "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "korean_nlp":       { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "reasoning":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "debugging":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "content_creation": { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "data_analysis":    { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
+      "security":         { "LOW": "glm-5",       "MEDIUM": "glm-5", "HIGH": "glm-5" }
+    },
+    "pro": {
+      "coding_general":   { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "coding_arch":      { "LOW": "glm-5",       "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "korean_nlp":       { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "reasoning":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "debugging":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "content_creation": { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "data_analysis":    { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "security":         { "LOW": "glm-5",       "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
+    },
+    "max": {
+      "coding_general":   { "LOW": "glm-5-turbo", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "coding_arch":      { "LOW": "glm-5.1",     "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "korean_nlp":       { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "reasoning":        { "LOW": "glm-5",       "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "debugging":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "content_creation": { "LOW": "glm-5-turbo", "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "data_analysis":    { "LOW": "glm-5",       "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "security":         { "LOW": "glm-5.1",     "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
+    }
+  },
+
+  "codexOverlay": {
+    "enabledWhen": "codex_oauth_enabled == true",
+    "comment": "GPT-5.4 의 reasoning_score=97, coding_score=97 로 GLM-5.1 대비 소폭 우위. extended thinking 슬롯에 우선 오버레이.",
+    "overrides": {
+      "coding_arch":     { "MEDIUM": "gpt-5.4", "HIGH": "gpt-5.4" },
+      "coding_general":  { "HIGH":   "gpt-5.4" },
+      "debugging":       { "HIGH":   "gpt-5.4" },
+      "security":        { "MEDIUM": "gpt-5.4", "HIGH": "gpt-5.4" },
+      "reasoning":       { "HIGH":   "gpt-5.4" },
+      "data_analysis":   { "HIGH":   "gpt-5.4" }
+    }
+  },
+
+  "complexityTiers": {
+    "LOW":    { "min": 0,  "max": 4  },
+    "MEDIUM": { "min": 5,  "max": 9  },
+    "HIGH":   { "min": 10, "max": 20 }
+  },
+
+  "reasoningDetection": {
+    "enabled": true,
+    "minScore": 2,
+    "comment": "감지되면 P81/P82 에 따라 reasoning_score 최상위 모델로 격상. LOW 복잡도라도 격상.",
+    "keywordsKo": [
+      "증명", "알고리즘", "복잡도", "수학", "최적화", "정합성",
+      "상태 머신", "동형", "불변조건", "race condition",
+      "분산 합의", "정렬 증명", "lock-free", "Byzantine"
+    ],
+    "keywordsEn": [
+      "prove", "proof", "invariant", "complexity", "big-?o",
+      "algorithm", "optimization", "theorem", "derive",
+      "tradeoff", "race condition", "distributed consensus",
+      "lock-free", "byzantine"
+    ],
+    "categories": ["reasoning", "coding_arch", "data_analysis", "security"],
+    "categoryBonus": 1,
+    "keywordBonus": 2
+  },
+
+  "koreanDetection": {
+    "enabled": true,
+    "thresholds": { "low": 0.3, "medium": 0.5, "high": 0.7 },
+    "codingOverride": true
+  },
+
+  "fallbackChains": {
+    "lite": {
+      "coding":    ["glm-5", "glm-5-turbo"],
+      "korean":    ["glm-5", "glm-5-turbo"],
+      "reasoning": ["glm-5", "glm-5-turbo"]
+    },
+    "pro": {
+      "coding":    ["glm-5.1", "glm-5", "glm-5-turbo"],
+      "korean":    ["glm-5.1", "glm-5", "glm-5-turbo"],
+      "reasoning": ["glm-5.1", "glm-5", "glm-5-turbo"]
+    },
+    "max": {
+      "coding":    ["glm-5.1", "glm-5", "glm-5-turbo"],
+      "korean":    ["glm-5.1", "glm-5", "glm-5-turbo"],
+      "reasoning": ["glm-5.1", "glm-5", "glm-5-turbo"]
+    },
+    "withCodex": {
+      "coding":    ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["gpt-5.4", "glm-5.1", "glm-5"],
+      "reasoning": ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+    }
+  }
+}
