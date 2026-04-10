@@ -7,14 +7,28 @@ Z.ai 코딩플랜(Lite/Pro/Max) + ChatGPT Codex OAuth 다중 계정을 하나의
 [![Release](https://img.shields.io/github/v/release/jkf87/ohmyclaw)](https://github.com/jkf87/ohmyclaw/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 설치
+## Quick Install
+
+### 원라인 설치
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/jkf87/ohmyclaw/main/install.sh)
+```
+
+### 수동 설치
 
 ```bash
 git clone https://github.com/jkf87/ohmyclaw.git
 ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
 ```
 
-그 다음 아무 OpenClaw 에이전트(Telegram/Discord/Web/CLI)에서:
+### OpenClaw 에이전트에게 설치 시키기
+
+아무 채널(Telegram/Discord/Web)에서 이 프롬프트를 복붙하세요:
+
+> ohmyclaw 스킬을 설치해줘. https://github.com/jkf87/ohmyclaw 클론하고 skills/ohmyclaw 디렉토리를 ~/.openclaw/skills/ohmyclaw 에 심볼릭 링크 걸어줘. 끝나면 /ohmyclaw 실행해서 HUD 보여줘.
+
+### 설치 확인
 
 ```
 /ohmyclaw
