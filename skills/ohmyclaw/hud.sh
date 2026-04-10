@@ -56,29 +56,50 @@ now_epoch() { date +%s; }
 today() { date +%Y-%m-%d; }
 
 # ──────────────────────────────────────────────
-# 사용량 추적 (간단한 일일 카운터)
+# 사용량 추적 (provider 별 일일 카운터)
+# schema: {"date":"2026-04-10","zai":{"tokens":0,"requests":0},"codex":{"tokens":0,"requests":0},"total":{"tokens":0,"requests":0}}
 # ──────────────────────────────────────────────
-get_usage() {
-  local d
-  d=$(jq -r '.date // ""' "$USAGE_FILE")
-  if [[ "$d" != "$(today)" ]]; then
-    echo '{"date":"'"$(today)"'","tokens":0,"requests":0}' > "$USAGE_FILE"
-  fi
-  jq -r '"\(.tokens) \(.requests)"' "$USAGE_FILE"
+init_usage() {
+  echo '{"date":"'"$(today)"'","zai":{"tokens":0,"requests":0},"codex":{"tokens":0,"requests":0},"total":{"tokens":0,"requests":0}}' > "$USAGE_FILE"
 }
 
-# 외부에서 호출: hud.sh log-usage <tokens> <requests>
-log_usage() {
-  local tokens="${1:-0}" requests="${2:-1}"
+ensure_usage() {
   local d
-  d=$(jq -r '.date // ""' "$USAGE_FILE")
+  d=$(jq -r '.date // ""' "$USAGE_FILE" 2>/dev/null || echo "")
   if [[ "$d" != "$(today)" ]]; then
-    echo '{"date":"'"$(today)"'","tokens":'"$tokens"',"requests":'"$requests"'}' > "$USAGE_FILE"
-  else
-    jq --argjson t "$tokens" --argjson r "$requests" \
-      '.tokens += $t | .requests += $r' "$USAGE_FILE" > "${USAGE_FILE}.tmp" \
-      && mv "${USAGE_FILE}.tmp" "$USAGE_FILE"
+    init_usage
   fi
+  # 마이그레이션: 옛날 flat 스키마 → provider 별
+  if ! jq -e '.zai' "$USAGE_FILE" >/dev/null 2>&1; then
+    local old_t old_r
+    old_t=$(jq -r '.tokens // 0' "$USAGE_FILE")
+    old_r=$(jq -r '.requests // 0' "$USAGE_FILE")
+    init_usage
+    jq --argjson t "$old_t" --argjson r "$old_r" \
+      '.zai.tokens = $t | .zai.requests = $r | .total.tokens = $t | .total.requests = $r' \
+      "$USAGE_FILE" > "${USAGE_FILE}.tmp" && mv "${USAGE_FILE}.tmp" "$USAGE_FILE"
+  fi
+}
+
+get_usage() {
+  ensure_usage
+  jq -r '"\(.total.tokens) \(.total.requests)"' "$USAGE_FILE"
+}
+
+get_usage_by_provider() {
+  local provider="$1"
+  ensure_usage
+  jq -r --arg p "$provider" '"\(.[$p].tokens // 0) \(.[$p].requests // 0)"' "$USAGE_FILE"
+}
+
+# 외부에서 호출: hud.sh log-usage <tokens> <requests> [provider]
+# provider: zai | codex (기본: zai)
+log_usage() {
+  local tokens="${1:-0}" requests="${2:-1}" provider="${3:-zai}"
+  ensure_usage
+  jq --argjson t "$tokens" --argjson r "$requests" --arg p "$provider" \
+    '.[$p].tokens += $t | .[$p].requests += $r | .total.tokens += $t | .total.requests += $r' \
+    "$USAGE_FILE" > "${USAGE_FILE}.tmp" && mv "${USAGE_FILE}.tmp" "$USAGE_FILE"
 }
 
 # ──────────────────────────────────────────────
@@ -99,22 +120,51 @@ section_plan() {
   [[ "$PLAN" == "lite" ]] && plan_color="$YELLOW"
 
   printf "  ${B}Plan${R}  ${plan_color}${B}%s${R} (\$%s/월)  " "$plan_upper" "$price"
-  printf "Workers: ${B}%s${R}  " "$max_workers"
-
-  # 사용량
-  read -r used_tokens used_requests <<< "$(get_usage)"
-  local token_pct=0 req_pct=0
-  [[ $daily_tokens -gt 0 ]] && token_pct=$(( used_tokens * 100 / daily_tokens ))
-  [[ $daily_requests -gt 0 ]] && req_pct=$(( used_requests * 100 / daily_requests ))
-  [[ $token_pct -gt 100 ]] && token_pct=100
-  [[ $req_pct -gt 100 ]] && req_pct=100
-
+  printf "Workers: ${B}%s${R}\n" "$max_workers"
   echo ""
-  printf "  ${DIM}Tokens${R}    %s / %s  " "$(printf '%sK' $((used_tokens / 1000)))" "$(printf '%sM' $((daily_tokens / 1000000)))"
-  bar $token_pct
+
+  # provider 별 사용량
+  ensure_usage
+  local codex_req_limit=1500  # codex_oauth_addon quota
+
+  printf "  ${DIM}%-8s %10s %10s${R}\n" "provider" "tokens" "requests"
+  printf "  ${DIM}%-8s %10s %10s${R}\n" "────────" "──────" "────────"
+
+  # zai
+  read -r zai_t zai_r <<< "$(get_usage_by_provider zai)"
+  local zai_t_pct=0 zai_r_pct=0
+  [[ $daily_tokens -gt 0 ]] && zai_t_pct=$(( zai_t * 100 / daily_tokens ))
+  [[ $daily_requests -gt 0 ]] && zai_r_pct=$(( zai_r * 100 / daily_requests ))
+  [[ $zai_t_pct -gt 100 ]] && zai_t_pct=100
+  [[ $zai_r_pct -gt 100 ]] && zai_r_pct=100
+  printf "  ${GREEN}%-8s${R} %7sK / %sM  " "zai" "$((zai_t / 1000))" "$((daily_tokens / 1000000))"
+  bar $zai_t_pct
+  printf "  %5s / %s  " "$zai_r" "$daily_requests"
+  bar $zai_r_pct
   echo ""
-  printf "  ${DIM}Requests${R}  %s / %s  " "$used_requests" "$daily_requests"
-  bar $req_pct
+
+  # codex
+  read -r codex_t codex_r <<< "$(get_usage_by_provider codex)"
+  if [[ "$CODEX" == "true" ]]; then
+    local codex_r_pct=0
+    [[ $codex_req_limit -gt 0 ]] && codex_r_pct=$(( codex_r * 100 / codex_req_limit ))
+    [[ $codex_r_pct -gt 100 ]] && codex_r_pct=100
+    printf "  ${CYAN}%-8s${R} %7sK / ${DIM}∞${R}      " "codex" "$((codex_t / 1000))"
+    printf "${DIM}(sub)${R}"
+    printf "  %5s / %s  " "$codex_r" "$codex_req_limit"
+    bar $codex_r_pct
+  else
+    printf "  ${DIM}%-8s${R} ${DIM}(disabled)${R}" "codex"
+  fi
+  echo ""
+
+  # total
+  read -r total_t total_r <<< "$(get_usage)"
+  local total_t_pct=0
+  [[ $daily_tokens -gt 0 ]] && total_t_pct=$(( total_t * 100 / daily_tokens ))
+  [[ $total_t_pct -gt 100 ]] && total_t_pct=100
+  printf "  ${B}%-8s${R} %7sK / %sM  " "total" "$((total_t / 1000))" "$((daily_tokens / 1000000))"
+  bar $total_t_pct
   echo ""
 }
 
@@ -198,22 +248,30 @@ section_routing() {
 # Compact (한 줄)
 # ──────────────────────────────────────────────
 compact() {
+  ensure_usage
   local plan_upper
   plan_upper=$(echo "$PLAN" | tr '[:lower:]' '[:upper:]')
 
-  read -r used_tokens used_requests <<< "$(get_usage)"
   local daily_tokens
   daily_tokens=$(jq -r --arg p "$PLAN" '.plans[$p].quota.dailyTokens' "$ROUTING_FILE")
+
+  read -r zai_t zai_r <<< "$(get_usage_by_provider zai)"
+  read -r codex_t codex_r <<< "$(get_usage_by_provider codex)"
+  read -r total_t total_r <<< "$(get_usage)"
+
   local pct=0
-  [[ $daily_tokens -gt 0 ]] && pct=$(( used_tokens * 100 / daily_tokens ))
+  [[ $daily_tokens -gt 0 ]] && pct=$(( total_t * 100 / daily_tokens ))
 
-  local zai_enabled codex_status
+  local zai_enabled
   zai_enabled=$(jq -r '.accounts.pools.zai.accounts | map(select(.enabled == true)) | length' "$ROUTING_FILE")
-  codex_status="off"
-  [[ "$CODEX" == "true" ]] && codex_status="on"
 
-  printf "🦞 ${B}%s${R} | zai:%s acct | codex:%s | tokens:%d%% | req:%s" \
-    "$plan_upper" "$zai_enabled" "$codex_status" "$pct" "$used_requests"
+  printf "🦞 ${B}%s${R} | zai:%sK/%s acct | " "$plan_upper" "$((zai_t/1000))" "$zai_enabled"
+  if [[ "$CODEX" == "true" ]]; then
+    printf "codex:%sK/%sr | " "$((codex_t/1000))" "$codex_r"
+  else
+    printf "codex:off | "
+  fi
+  printf "total:%d%% %sr" "$pct" "$total_r"
   echo ""
 }
 
@@ -251,6 +309,6 @@ case "${1:-}" in
   --quota)     section_plan ;;
   --routing)   section_routing ;;
   --models)    section_models ;;
-  log-usage)   shift; log_usage "${1:-0}" "${2:-1}" ;;
+  log-usage)   shift; log_usage "${1:-0}" "${2:-1}" "${3:-zai}" ;;
   *)           full_hud ;;
 esac
