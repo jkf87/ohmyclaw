@@ -40,7 +40,7 @@
       "tier": "HIGH",
       "contextWindow": 256000,
       "maxTokens": 131072,
-      "scores": { "coding": 97, "reasoning": 97, "korean": 72 },
+      "scores": { "coding": 97, "reasoning": 97, "korean": 97 },
       "reasoningMode": true,
       "auth": "oauth_codex",
       "plans": ["oauth"],

@@ -797,7 +797,7 @@ $SKILL/pool.sh next glm-5 >/dev/null 2>&1 && echo "✓ pool round-robin smoke te
 | **GLM-5 Turbo** | LOW | 128K | 70 | 60 | 95 | zai · lite/pro/max |
 | **GLM-5** | MEDIUM | 128K | 88 | 82 | 95 | zai · lite/pro/max |
 | **GLM-5.1** ⚡ | HIGH | 204.8K | 95 | 95 | 96 | zai · pro/max |
-| **GPT-5.4** ⚡ *(선택)* | HIGH | 256K | 97 | 97 | 72 | codex · OAuth pool |
+| **GPT-5.4** ⚡ *(선택)* | HIGH | 256K | 97 | 97 | **97** | codex · OAuth pool |
 
 ⚡ = extended thinking (reasoning_mode: true)
 
@@ -849,7 +849,7 @@ skills/ohmyclaw/
 - **결정론과 워크플로의 분리**: 모델 선택 같은 결정론적 로직은 코드(`select-model.sh` + `routing.json`)에, 협상 가능한 워크플로는 instructions(`SKILL.md`)에. LLM 이 매번 매트릭스를 재해석하면 드리프트 발생.
 - **추론 신호는 복잡도와 독립**: "분산 합의 정합성 증명" 은 짧은 문장(LOW 복잡도)이지만 reasoning_score 최상위 모델이 필요. 키워드 기반 휴리스틱이 LOW 격상 트리거 역할.
 - **Lite 플랜은 적극적 강등**: 자동 `cap_for_lite` 가 없으면 사용자가 코딩플랜 quota 초과 위험. P95 plan_block 규칙 필수.
-- **Codex OAuth 는 오버레이지 대체가 아님**: gpt-5.4 가 reasoning_score 97 로 우위지만 한국어 점수는 72. 한국어 NLP/콘텐츠는 그대로 GLM 시리즈 유지.
+- **Codex OAuth 는 오버레이지 대체가 아님**: gpt-5.4 는 코딩 97, 추론 97, 한국어 97 로 전 영역 최상위. Codex OAuth 활성 시 한국어 태스크도 GPT-5.4 로 처리 가능.
 - **갭 감지 1회 + ESCALATED**: 무한 fix 시도는 사용자 입장에서 더 큰 비용. 1회 fix 후 명확히 사용자 결정 요청.
 - **bridge notification 은 fire-and-forget**: 발신 실패가 파이프라인을 차단하면 안 됨. OMX 의 `|| true` 패턴 채택.
 - **bash 직역 거부**: 원본 harness 의 `route-task.sh` 를 직역하지 않고, `select-model.sh` + `routing.json` 으로 데이터/로직 분리. 같은 결과지만 LLM 이 reasoning 을 routing.json 으로 위임 가능.
