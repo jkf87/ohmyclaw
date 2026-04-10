@@ -72,14 +72,15 @@ Models   glm-5-turbo, glm-5, glm-5.1
 
 ### 지원 모델
 
-| 모델 | 코딩 | 추론 | 한국어 | 플랜 |
-|------|------|------|--------|------|
-| **GLM-5 Turbo** | 70 | 60 | 95 | lite/pro/max |
-| **GLM-5** | 88 | 82 | 95 | lite/pro/max |
-| **GLM-5.1** ⚡ | 95 | 95 | 96 | pro/max |
-| **GPT-5.4** ⚡ | 97 | 97 | 72 | Codex OAuth |
+| 모델 | 코딩 | 추론 | 한국어 | 확장사고 | 플랜 |
+|------|------|------|--------|---------|------|
+| **GLM-5 Turbo** | 70 | 60 | 95 | — | Lite / Pro / Max |
+| **GLM-5** | 88 | 82 | 95 | — | Lite / Pro / Max |
+| **GLM-5.1** | 95 | 95 | 96 | ⚡ 지원 | Pro / Max |
+| **GPT-5.4** | 97 | 97 | 72 | ⚡ 지원 | ChatGPT 구독 (OAuth) |
 
-⚡ = extended thinking (reasoning_mode)
+> ⚡ **확장 사고(extended thinking)**: 복잡한 추론이 필요한 태스크에서 더 깊이 생각하는 모드. 숫자는 0–100 상대 점수.
+> GPT-5.4 는 코딩/추론 최강이지만 **한국어 점수가 72로 낮아서**, 한국어 NLP/콘텐츠는 자동으로 GLM 시리즈가 처리합니다.
 
 ### Z.ai 코딩플랜
 
@@ -98,17 +99,17 @@ export CODEX_OAUTH_ENABLED=true           # ChatGPT 구독 보유 시
 
 ### 추론 인식
 
-추론 집약 태스크(증명/알고리즘/복잡도/불변조건) 감지 시 reasoning_score 최상위 모델로 자동 격상:
+증명, 알고리즘, 복잡도, 불변조건 같은 **추론 집약 키워드**가 감지되면 추론 점수가 가장 높은 모델로 자동 격상합니다:
 
-| 조건 | 모델 |
-|------|------|
-| reasoning_heavy + Codex | **GPT-5.4** (97) |
-| reasoning_heavy + Pro/Max | **GLM-5.1** (95) |
-| reasoning_heavy + Lite | GLM-5 (82, 상한) |
+| 조건 | 선택 모델 | 추론 점수 |
+|------|-----------|-----------|
+| 추론 집약 + ChatGPT 구독 활성 | **GPT-5.4** | 97 |
+| 추론 집약 + Pro/Max 플랜 | **GLM-5.1** | 95 |
+| 추론 집약 + Lite 플랜 | GLM-5 (상한) | 82 |
 
 ### 다중 계정 풀
 
-Z.ai 3계정 + Codex OAuth 2계정 round-robin. 지수 백오프 cooldown (60s → 600s cap). Fan-out 패턴 지원.
+Z.ai 3계정 + ChatGPT OAuth 2계정을 순환 배분(round-robin)합니다. 한 계정이 제한에 걸리면 자동으로 다음 계정으로 전환되고, 대기 시간은 60초에서 최대 600초까지 점진적으로 늘어납니다. 여러 계정에 동시 발사(fan-out)도 가능합니다.
 
 ```bash
 # 계정 상태
