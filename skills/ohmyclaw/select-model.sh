@@ -59,7 +59,13 @@ for arg in "$@"; do
     --no-openrouter)       OPENROUTER=false ;;
     --prefer-free)         PREFER_FREE=true ;;
     --no-prefer-free)      PREFER_FREE=false ;;
-    --openrouter-model=*)  OPENROUTER_MODEL_OVERRIDE="${arg#*=}" ;;
+    --openrouter-model=*)
+      OPENROUTER_MODEL_OVERRIDE="${arg#*=}"
+      if [[ -z "$OPENROUTER_MODEL_OVERRIDE" ]]; then
+        echo "ERROR: --openrouter-model 값이 비어있습니다" >&2
+        exit 2
+      fi
+      ;;
     --json)                OUTPUT_JSON=true ;;
   esac
 done
