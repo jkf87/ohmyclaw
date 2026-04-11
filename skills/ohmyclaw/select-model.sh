@@ -62,7 +62,7 @@ done
 
 if [[ -z "$TASK_TEXT" ]]; then
   cat >&2 <<EOF
-Usage: $0 <task-text> [category] [--plan=lite|pro|max] [--codex] [--openrouter] [--json]
+Usage: $0 <task-text> [category] [--plan=lite|pro|max] [--codex] [--openrouter] [--prefer-free] [--json]
 Categories: auto, coding_general, coding_arch, korean_nlp, reasoning,
             debugging, content_creation, data_analysis, security
 EOF
