@@ -219,15 +219,73 @@ skills/ohmyclaw/pool.sh status codex
 
 > **계정 수 제한 없음.** ChatGPT Plus($20/월) 또는 Pro($200/월) 구독 1개 = OAuth 토큰 1개. 구독 5개면 5계정 풀 가능. `pool.sh` 가 전부 round-robin 으로 순환합니다.
 
-#### Z.ai 계정 추가
+#### Z.ai 계정 추가 (N개 라운드로빈)
+
+Z.ai 는 API 키 N개를 풀에 넣어 라운드로빈 분산할 수 있습니다. 설정은 **환경변수 등록 + `routing.json` 편집** 두 단계입니다.
+
+**1단계 — 환경변수에 키 등록** (`~/.zshrc` 또는 `~/.bashrc`)
 
 ```bash
-# 보조 API 키 발급 후 환경변수 등록
-export ZAI_API_KEY_2="zai_..."
-
-# routing.json 에서 zai-secondary 의 enabled 를 true 로 변경
-# 팀 Max 계정도 동일하게 추가 가능
+export ZAI_API_KEY="zai_primary_..."        # 1번 키 (기본)
+export ZAI_API_KEY_2="zai_secondary_..."    # 2번 키
+export ZAI_API_KEY_3="zai_tertiary_..."     # 3번 키
+export ZAI_API_KEY_4="zai_quaternary_..."   # 4번 키
+# 필요한 만큼 계속 _5, _6, ... 추가
 ```
+
+**2단계 — `skills/ohmyclaw/routing.json` 의 `accounts.pools.zai.accounts` 배열에 항목 추가**
+
+```json
+"accounts": [
+  { "id": "zai-primary",    "authType": "oauth_zai", "openclawProfile": "default", "plan": "max", "weight": 10, "enabled": true },
+  { "id": "zai-secondary",  "authType": "api_key",   "envKey": "ZAI_API_KEY_2",    "plan": "max", "weight": 10, "enabled": true },
+  { "id": "zai-tertiary",   "authType": "api_key",   "envKey": "ZAI_API_KEY_3",    "plan": "max", "weight": 10, "enabled": true },
+  { "id": "zai-quaternary", "authType": "api_key",   "envKey": "ZAI_API_KEY_4",    "plan": "max", "weight": 10, "enabled": true }
+]
+```
+
+필드 의미:
+- `id`: 풀 내 고유 식별자 (자유 명명)
+- `envKey`: 1단계에서 export 한 환경변수 이름
+- `plan`: `lite` / `pro` / `max` (코딩플랜 티어, 라우팅 영향)
+- `weight`: 높을수록 자주 선택됨 (동일 값이면 균등 분산)
+- `enabled`: `true` 여야 풀에 포함됨
+
+**3단계 — 검증**
+
+```bash
+skills/ohmyclaw/pool.sh status zai     # 모든 계정 ready 확인
+skills/ohmyclaw/pool.sh next glm-5.1   # 라운드로빈 픽 테스트
+```
+
+---
+
+<details>
+<summary><b>💡 LLM (Claude Code 등) 에게 한 번에 시키기</b></summary>
+
+편집이 번거로우면 다음 프롬프트를 그대로 복사해서 AI 에이전트에게 붙여넣으세요. JSON 편집까지 알아서 처리합니다.
+
+```
+내 Z.ai API 키 N개를 ohmyclaw 풀에 라운드로빈으로 추가해줘.
+
+키 목록:
+- ZAI_API_KEY_2="여기에-키-붙여넣기"
+- ZAI_API_KEY_3="여기에-키-붙여넣기"
+- ZAI_API_KEY_4="여기에-키-붙여넣기"
+
+플랜: max (또는 lite/pro)
+
+작업:
+1. ~/.zshrc 에 export 구문 추가 (기존 ZAI_API_KEY 는 유지)
+2. skills/ohmyclaw/routing.json 의 accounts.pools.zai.accounts 배열에 항목 추가.
+   형식은 기존 zai-secondary 항목을 참고. id 는 zai-tertiary / zai-quaternary / ... 로,
+   envKey 는 ZAI_API_KEY_N, plan/weight 는 요청대로, enabled: true.
+3. 편집 후 skills/ohmyclaw/pool.sh status zai 로 검증.
+4. 키 값이 커밋되지 않도록 주의. .zshrc 외 파일에는 키 리터럴을 넣지 말 것.
+```
+
+에이전트가 `routing.json` 편집 + 환경변수 등록 + 검증까지 자동 수행합니다.
+</details>
 
 #### OpenRouter 계정 추가
 
