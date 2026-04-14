@@ -223,6 +223,10 @@ skills/ohmyclaw/pool.sh status codex
 
 Z.ai 는 API 키 N개를 풀에 넣어 라운드로빈 분산할 수 있습니다. 설정은 **환경변수 등록 + `routing.json` 편집** 두 단계입니다.
 
+> **💡 단일 계정에서도 효과 있음** — Z.ai 공식 문서([devpack/overview](https://docs.z.ai/devpack/overview))는 코딩플랜 쿼터가 "subscription 단위"라고만 명시하고 **키별 rate limit 독립성은 언급하지 않습니다**. 경험적으로 검증한 결과, **같은 Max 구독 내에서 발급한 복수 API 키는 독립적인 rate limit / 동접 카운터를 가집니다**. 즉 한 계정의 Max 쿼터 안에서도 키 N개 라운드로빈으로 **버스트 동접을 N배로** 끌어올릴 수 있습니다 (5시간/주간 총량 캡은 구독 단위 공유라 그대로).
+>
+> **요약**: 키 N개 라운드로빈 = 처리량(burst/concurrency) ↑, 총 쿼터(prompts per 5h) 는 불변.
+
 **1단계 — 환경변수에 키 등록** (`~/.zshrc` 또는 `~/.bashrc`)
 
 ```bash
