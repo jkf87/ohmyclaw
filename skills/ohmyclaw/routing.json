@@ -24,6 +24,17 @@
       "anthropicAlias": "sonnet",
       "plans": ["lite", "pro", "max"]
     },
+    "glm-4.7": {
+      "displayName": "GLM-4.7",
+      "tier": "HIGH",
+      "contextWindow": 204800,
+      "maxTokens": 131072,
+      "scores": { "coding": 91, "reasoning": 90, "korean": 96 },
+      "reasoningMode": true,
+      "anthropicAlias": "opus",
+      "plans": ["pro", "max"],
+      "note": "Z.ai 제공 GLM-4.7. 한국어 문서 작업과 장문 생성용 중간 고성능 모델."
+    },
     "glm-5.1": {
       "displayName": "GLM-5.1",
       "tier": "HIGH",
@@ -165,7 +176,7 @@
     },
     "pro": {
       "priceUsdMonth": 15,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-5.1"],
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1"],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 8000000,
@@ -179,7 +190,7 @@
     },
     "max": {
       "priceUsdMonth": 30,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-5.1"],
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1"],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 25000000,
@@ -211,7 +222,7 @@
       "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "content_creation": { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
       "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "security":         { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
     },
@@ -221,7 +232,7 @@
       "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
       "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
-      "content_creation": { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
       "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
       "security":         { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
     }
@@ -334,7 +345,8 @@
         "comment": "활성화: 1) codex login 2) 본 풀 enabled=true 3) CODEX_OAUTH_ENABLED=true",
         "accounts": [
           { "id": "codex-primary",   "authType": "oauth_codex", "codexHome": "~/.codex",       "weight": 10, "enabled": false },
-          { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": false }
+          { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": false },
+          { "id": "codex-tertiary",  "authType": "oauth_codex", "codexHome": "~/.codex-acct3", "weight": 10, "enabled": false }
         ]
       },
       "openrouter": {
