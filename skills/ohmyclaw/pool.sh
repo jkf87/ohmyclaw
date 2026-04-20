@@ -15,6 +15,7 @@
 # 모델 → 풀 매핑 규칙:
 #   glm-*    → zai 풀
 #   gpt-*    → codex 풀 (codex_oauth_enabled 일 때만)
+#   claude-code-* → claudecli 풀 (claudecli_delegation_enabled 일 때만)
 #   openrouter-* → openrouter 풀 (openrouter_enabled 일 때만)
 
 set -euo pipefail
@@ -42,6 +43,7 @@ pool_for_model() {
   case "$model" in
     glm-*) echo "zai" ;;
     gpt-*) echo "codex" ;;
+    claude-code-*) echo "claudecli" ;;
     openrouter-*)  echo "openrouter" ;;
     *) echo "" ;;
   esac
@@ -66,7 +68,7 @@ get_eligible_accounts() {
     | [
         .id,
         .authType,
-        (.openclawProfile // .codexHome // .envKey // ""),
+        (.openclawProfile // .codexHome // .claudeHome // .envKey // ""),
         (.plan // "any"),
         (.weight // 1)
       ]
@@ -82,13 +84,19 @@ action_next() {
   local pool
   pool=$(pool_for_model "$model")
   if [[ -z "$pool" ]]; then
-    echo "ERROR: unknown model prefix for '$model' (expect glm-*, gpt-*, or openrouter-*)" >&2
+    echo "ERROR: unknown model prefix for '$model' (expect glm-*, gpt-*, claude-code-*, or openrouter-*)" >&2
     exit 1
   fi
 
   # codex 풀은 CODEX_OAUTH_ENABLED 게이트
   if [[ "$pool" == "codex" && "${CODEX_OAUTH_ENABLED:-false}" != "true" ]]; then
     echo "ERROR: codex pool not enabled (set CODEX_OAUTH_ENABLED=true)" >&2
+    exit 1
+  fi
+
+  # claudecli 풀은 CLAUDECLI_DELEGATION_ENABLED 게이트
+  if [[ "$pool" == "claudecli" && "${CLAUDECLI_DELEGATION_ENABLED:-false}" != "true" ]]; then
+    echo "ERROR: claudecli pool not enabled (set CLAUDECLI_DELEGATION_ENABLED=true and enable an account in routing.json)" >&2
     exit 1
   fi
 
@@ -250,7 +258,7 @@ action_status() {
     to_entries[]
     | .key as $pool
     | .value | to_entries[]
-    | select(.key | test("^(zai-|codex-|openrouter-)"))
+    | select(.key | test("^(zai-|codex-|claudecli-|openrouter-)"))
     | select(.value.cooldownUntil != null and (.value.cooldownUntil | tonumber) > ($now | tonumber))
     | "  \(.key) (\($pool)): \(((.value.cooldownUntil | tonumber) - ($now | tonumber)))s 남음"
   ' "$STATE_FILE" 2>/dev/null
@@ -292,6 +300,7 @@ Actions:
 Env:
   OHMYCLAW_STATE_DIR    state 디렉토리 (기본: ~/.cache/ohmyclaw)
   CODEX_OAUTH_ENABLED   codex 풀 사용 시 true 필수
+  CLAUDECLI_DELEGATION_ENABLED  claudecli 풀 사용 시 true 필수
   OPENROUTER_ENABLED    openrouter 풀 사용 시 true 필수 (OPENROUTER_API_KEY 도 필요)
 EOF
     exit 1

@@ -57,6 +57,18 @@
       "plans": ["oauth"],
       "note": "ChatGPT Plus/Pro 구독 OAuth 보유 시에만. codex_oauth_enabled=true 일 때 활성."
     },
+    "claude-code-experimental": {
+      "displayName": "Claude Code CLI Delegation (Experimental)",
+      "tier": "HIGH",
+      "contextWindow": 200000,
+      "maxTokens": 32000,
+      "scores": { "coding": 94, "reasoning": 96, "korean": 82 },
+      "reasoningMode": true,
+      "auth": "oauth_claude_cli",
+      "plans": ["experimental"],
+      "experimental": true,
+      "note": "공식 Claude Code CLI delegation 전용 실험 경로. 기본 비활성. 정책/호환성 변화로 언제든 차단되거나 제거될 수 있음."
+    },
     "openrouter-llama-3.3-70b-free": {
       "displayName": "Llama 3.3 70B Instruct (OpenRouter Free)",
       "tier": "MEDIUM",
@@ -251,6 +263,16 @@
     }
   },
 
+  "claudeCliOverlay": {
+    "enabledWhen": "claudecli_delegation_enabled == true",
+    "comment": "실험적 Claude Code CLI delegation 오버레이. 기본 비활성. 명시 opt-in 일 때만, Codex 오버레이 뒤 / OpenRouter 오버레이 앞에서 적용. reasoning/security/coding_arch 의 HIGH 난도만 제한적으로 위임.",
+    "overrides": {
+      "reasoning":     { "HIGH": "claude-code-experimental" },
+      "coding_arch":   { "HIGH": "claude-code-experimental" },
+      "security":      { "HIGH": "claude-code-experimental" }
+    }
+  },
+
   "openrouterFreeOverlay": {
     "enabledWhen": "openrouter_prefer_free == true",
     "comment": "OPENROUTER_PREFER_FREE=true 시 LOW/MEDIUM 복잡도 작업을 무료 모델로 우선 배정 (P78). HIGH 복잡도는 품질 보장을 위해 유료 모델(P79 이하)로 위임. 무료 모델 없는 카테고리/티어 조합은 P79 openrouterOverlay로 graceful fallback.",
@@ -349,6 +371,16 @@
           { "id": "codex-tertiary",  "authType": "oauth_codex", "codexHome": "~/.codex-acct3", "weight": 10, "enabled": false }
         ]
       },
+      "claudecli": {
+        "providerId": "anthropic-claude-cli",
+        "strategy": "round_robin",
+        "optional": true,
+        "modelPrefixes": ["claude-code-"],
+        "comment": "실험적 경로. 활성화: 1) claude CLI 로그인 완료 2) 본 풀 enabled=true 3) CLAUDECLI_DELEGATION_ENABLED=true",
+        "accounts": [
+          { "id": "claudecli-primary", "authType": "oauth_claude_cli", "claudeHome": "~/.claude", "weight": 10, "enabled": false }
+        ]
+      },
       "openrouter": {
         "providerId": "openrouter",
         "baseUrl": "https://openrouter.ai/api/v1",
@@ -392,6 +424,11 @@
       "coding":    ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
       "security":  ["gpt-5.4", "glm-5.1", "glm-5"],
       "reasoning": ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+    },
+    "withClaudeCli": {
+      "coding":    ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5"],
+      "reasoning": ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withOpenRouter": {
       "coding":    ["openrouter-claude-opus-4", "glm-5.1", "glm-5", "glm-5-turbo"],

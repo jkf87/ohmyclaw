@@ -249,6 +249,35 @@ export CODEX_OAUTH_ENABLED=true
 | `No subscription found` | Free 계정. Plus/Pro 결제 후 재시도 |
 | Rate limit 초과 | § 6 멀티 계정 풀 사용 |
 
+### 5-4. Experimental Claude Code CLI delegation (opt-in)
+
+> **상태: 실험적 / 기본 비활성 / 언제든 제거 가능**
+>
+> 공식 Claude Code CLI 를 로컬에서 직접 실행하는 delegation 경로만 다룹니다. 제3자 도구에서의 구독 사용 정책이 바뀌면 이 경로는 막히거나 지원 중단될 수 있습니다. 따라서 ohmyclaw 에서는 **기본 라우팅으로 쓰지 않고**, 명시 opt-in 일 때만 제한적으로 노출합니다.
+
+활성화 조건:
+
+```bash
+export CLAUDECLI_DELEGATION_ENABLED=true
+# routing.json 의 accounts.pools.claudecli.accounts[0].enabled=true
+claude login
+```
+
+제한:
+
+- 기본 경로 아님, fallback 우선
+- HIGH 난도의 `reasoning`, `coding_arch`, `security` 만 제한적으로 오버레이
+- direct OAuth token ingestion 금지, 공식 CLI 세션만 사용
+- helper: `skills/ohmyclaw/claude-delegate.sh`
+
+예시:
+
+```bash
+SKILL=skills/ohmyclaw
+MODEL=$($SKILL/select-model.sh "보안 경계 재설계" security --claudecli --json)
+$SKILL/claude-delegate.sh "보안 경계 재설계" --cwd="$PROJECT"
+```
+
 ---
 
 ## 6. Multi-account routing (계정 풀)
@@ -472,8 +501,8 @@ MODEL=$($SKILL/select-model.sh "$TASK" auto --plan=$PLAN ${CODEX:+--codex})
 # Codex 로 spawn (PTY 필수)
 bash pty:true workdir:"$PROJECT" background:true command:"codex exec --full-auto '$TASK'"
 
-# Claude Code 로 spawn (PTY 불필요)
-bash workdir:"$PROJECT" background:true command:"claude --permission-mode bypassPermissions --print '$TASK'"
+# Claude Code 로 spawn (PTY 불필요, 실험 경로는 helper 사용 권장)
+bash workdir:"$PROJECT" background:true command:"skills/ohmyclaw/claude-delegate.sh '$TASK' --cwd='$PROJECT'"
 
 # Pi 로 spawn (PTY 필수)
 bash pty:true workdir:"$PROJECT" background:true command:"pi '$TASK'"

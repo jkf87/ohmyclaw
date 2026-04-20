@@ -2,11 +2,12 @@
 # ohmyclaw skill — model router (jq-based, deterministic)
 #
 # Usage:
-#   select-model.sh <task-text> [category] [--plan=lite|pro|max] [--codex] [--openrouter] [--openrouter-prefer-free] [--openrouter-model=<id>] [--json]
+#   select-model.sh <task-text> [category] [--plan=lite|pro|max] [--codex] [--claudecli] [--openrouter] [--openrouter-prefer-free] [--openrouter-model=<id>] [--json]
 #
 # Examples:
 #   select-model.sh "REST API 인증 미들웨어 설계" coding_arch --plan=pro
 #   select-model.sh "분산 합의 알고리즘 정합성 증명" reasoning --plan=max --codex
+#   select-model.sh "보안 경계 재설계" security --plan=max --claudecli --json
 #   select-model.sh "$(cat task.md)" auto --plan=pro --json
 #   select-model.sh "architectural refactor design" coding_arch --plan=pro --openrouter
 #   select-model.sh "간단한 코드 수정" coding_general --openrouter --openrouter-prefer-free
@@ -18,6 +19,7 @@
 # Env overrides:
 #   ZAI_CODING_PLAN=lite|pro|max
 #   CODEX_OAUTH_ENABLED=true|false
+#   CLAUDECLI_DELEGATION_ENABLED=true|false
 #   OPENROUTER_ENABLED=true|false
 #   OPENROUTER_PREFER_FREE=true|false      (기본: false, true 시 LOW/MEDIUM 작업에 무료 모델 우선)
 #   OPENROUTER_MODEL_OVERRIDE=<model-id>   (특정 OpenRouter 모델 강제 지정, --openrouter-model 과 동일)
@@ -44,6 +46,7 @@ TASK_TEXT="${1:-}"
 CATEGORY="${2:-auto}"
 PLAN="${ZAI_CODING_PLAN:-pro}"
 CODEX="${CODEX_OAUTH_ENABLED:-false}"
+CLAUDECLI="${CLAUDECLI_DELEGATION_ENABLED:-false}"
 OPENROUTER="${OPENROUTER_ENABLED:-false}"
 PREFER_FREE="${OPENROUTER_PREFER_FREE:-false}"
 OPENROUTER_MODEL_OVERRIDE="${OPENROUTER_MODEL_OVERRIDE:-}"
@@ -55,6 +58,8 @@ for arg in "$@"; do
     --plan=*)              PLAN="${arg#*=}" ;;
     --codex)               CODEX=true ;;
     --no-codex)            CODEX=false ;;
+    --claudecli)           CLAUDECLI=true ;;
+    --no-claudecli)        CLAUDECLI=false ;;
     --openrouter)          OPENROUTER=true ;;
     --no-openrouter)       OPENROUTER=false ;;
     --openrouter-prefer-free)    PREFER_FREE=true ;;
@@ -77,7 +82,7 @@ fi
 
 if [[ -z "$TASK_TEXT" ]]; then
   cat >&2 <<EOF
-Usage: $0 <task-text> [category] [--plan=lite|pro|max] [--codex] [--openrouter] [--openrouter-prefer-free] [--openrouter-model=<id>] [--json]
+Usage: $0 <task-text> [category] [--plan=lite|pro|max] [--codex] [--claudecli] [--openrouter] [--openrouter-prefer-free] [--openrouter-model=<id>] [--json]
 Categories: auto, coding_general, coding_arch, korean_nlp, reasoning,
             debugging, content_creation, data_analysis, security
 EOF
@@ -254,6 +259,16 @@ if [[ -z "$PICKED" && "$CODEX" == "true" ]]; then
   fi
 fi
 
+# P79.5: experimental Claude Code CLI delegation overlay
+if [[ -z "$PICKED" && "$CLAUDECLI" == "true" ]]; then
+  OVERLAY=$(jq -r --arg c "$CATEGORY" --arg t "$TIER" \
+    '.claudeCliOverlay.overrides[$c][$t] // empty' "$ROUTING_FILE")
+  if [[ -n "$OVERLAY" ]]; then
+    PICKED="$OVERLAY"
+    REASON="claudecli_overlay ${CATEGORY}/${TIER} (P79.5 experimental)"
+  fi
+fi
+
 # P78: openrouter prefer_free overlay (LOW/MEDIUM만 적용, HIGH는 P79로 위임)
 if [[ -z "$PICKED" && "$OPENROUTER" == "true" && "$PREFER_FREE" == "true" ]]; then
   OVERLAY=$(jq -r --arg c "$CATEGORY" --arg t "$TIER" \
@@ -301,6 +316,14 @@ if [[ -n "$OPENROUTER_MODEL_OVERRIDE" || "$OPENROUTER" == "true" ]]; then
     *)                  FB_KEY="coding" ;;
   esac
   CHAIN=$(jq -r --arg k "$FB_KEY" '.fallbackChains.withOpenRouter[$k] // .fallbackChains.withOpenRouter.coding | join(",")' "$ROUTING_FILE")
+elif [[ "$CLAUDECLI" == "true" ]]; then
+  case "$CATEGORY" in
+    coding_*|debugging) FB_KEY="coding" ;;
+    security)           FB_KEY="security" ;;
+    reasoning)          FB_KEY="reasoning" ;;
+    *)                  FB_KEY="coding" ;;
+  esac
+  CHAIN=$(jq -r --arg k "$FB_KEY" '.fallbackChains.withClaudeCli[$k] // .fallbackChains.withClaudeCli.coding | join(",")' "$ROUTING_FILE")
 elif [[ "$CODEX" == "true" ]]; then
   case "$CATEGORY" in
     coding_*|debugging) FB_KEY="coding" ;;
@@ -334,6 +357,7 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
     --arg rh "$REASONING_HEAVY" \
     --arg plan "$PLAN" \
     --arg codex "$CODEX" \
+    --arg claudecli "$CLAUDECLI" \
     --arg openrouter "$OPENROUTER" \
     --arg prefer_free "$PREFER_FREE" \
     --arg or_model_override "$OPENROUTER_MODEL_OVERRIDE" \
@@ -347,6 +371,7 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
       reasoningHeavy: ($rh == "true"),
       activePlan: $plan,
       codexOauthEnabled: ($codex == "true"),
+      claudeCliDelegationEnabled: ($claudecli == "true"),
       openrouterEnabled: ($openrouter == "true"),
       openrouterPreferFree: ($prefer_free == "true"),
       openrouterModelOverride: (if $or_model_override == "" then null else $or_model_override end),
