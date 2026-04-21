@@ -335,3 +335,150 @@ skills/ohmyclaw/
 ## 라이선스
 
 MIT
+
+---
+
+# 🦞 ohmyclaw (English)
+
+> Multi-provider / multi-account agent harness skill for OpenClaw
+
+Routes tasks across Z.ai Coding Plans (Lite/Pro/Max) + ChatGPT Codex OAuth + **OpenRouter** (200+ models) + **Claude Code CLI** (experimental) through a single skill, with OMX-style composable verbs (`/ohmyclaw exec`, `/ohmyclaw team`, `/ohmyclaw ralph`, `/ohmyclaw plan`, `/ohmyclaw review`, `/ohmyclaw debug`).
+
+## Quick Install
+
+```bash
+# One-liner
+bash <(curl -sL https://raw.githubusercontent.com/jkf87/ohmyclaw/main/install.sh)
+
+# Manual
+git clone https://github.com/jkf87/ohmyclaw.git
+ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
+```
+
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| **`/ohmyclaw`** | Plan/account/quota/model dashboard |
+| `/ohmyclaw route <task>` | Routing decision JSON |
+| `/ohmyclaw pool` | Account pool + cooldown status |
+| `/ohmyclaw doctor` | 10-point preflight check |
+| `/ohmyclaw exec <task>` | Autonomous execution |
+| `/ohmyclaw plan <task>` | Task planning |
+| `/ohmyclaw plan --consensus` | Planner → Architect → Critic consensus |
+| `/ohmyclaw review` | 5-aspect review + gap detection |
+| `/ohmyclaw team N <task>` | Parallel workers |
+| `/ohmyclaw ralph <task>` | Execute-until-verified loop |
+| `/ohmyclaw debug <task>` | 4-stage root cause analysis |
+
+## Multi-Provider Routing
+
+### Supported Models
+
+| Model | SWE-Bench Pro (Coding) | GPQA Diamond (Reasoning) | AIME 2025/26 (Math) | Extended Thinking | Plan |
+|-------|----------------------|------------------------|--------------------|-------------------|------|
+| **GLM-5 Turbo** | — | — | — | — | Lite / Pro / Max |
+| **GLM-5** | — | 86.0 | 84.0 | — | Lite / Pro / Max |
+| **GLM-5.1** | **58.4** (#1) | 86.2 | 95.3 | ⚡ Yes | Pro / Max |
+| **GPT-5.4** | 57.7 | **92.8** | **100** | ⚡ Yes | ChatGPT subscription (OAuth) |
+| **OpenRouter** | Varies | Varies | Varies | Per model | API key (free + paid) |
+
+### Z.ai Coding Plans
+
+| Plan | Price | Models | Daily Tokens | Workers |
+|------|-------|--------|-------------|---------|
+| **Lite** | $3/mo | GLM-5 Turbo, GLM-5 | 1.5M | 2 |
+| **Pro** | $15/mo | + GLM-5.1 | 8M | 4 |
+| **Max** | $30/mo | All models + priority | 25M | 7 |
+
+```bash
+export ZAI_CODING_PLAN=pro                # lite | pro | max
+export CODEX_OAUTH_ENABLED=true           # If you have a ChatGPT subscription
+export OPENROUTER_ENABLED=true            # External models via OpenRouter
+export OPENROUTER_API_KEY=sk-or-...       # From openrouter.ai
+export OPENROUTER_PREFER_FREE=true        # Prefer free models (optional)
+```
+
+### Routing Priority
+
+1. **Z.ai matrix** (P75) — Default routing
+2. **Codex overlay** (P80) — GPT-5.4 upgrade
+3. **Claude Code CLI overlay** (P79.5) — Experimental Claude delegation (⚠️ EXPERIMENTAL)
+4. **OpenRouter overlay** (P79) — External model overlay
+5. **OpenRouter Free overlay** (P78) — Free model preference (when PREFER_FREE)
+
+> When Codex + OpenRouter are both active, Codex takes priority. HIGH-complexity tasks skip free models.
+
+### Claude Code CLI Delegation (⚠️ EXPERIMENTAL)
+
+> **Experimental — disabled by default — may be removed at any time**
+>
+> Uses only official Claude Code CLI delegation. No direct OAuth token ingestion.
+> If Anthropic's CLI delegation policy changes, this path may be blocked or removed.
+
+When enabled, only HIGH-complexity tasks in `reasoning`, `coding_arch`, and `security` categories are delegated to the Claude Code CLI.
+
+#### Setup
+
+```bash
+# 1. Install and log in to claude CLI
+claude login
+
+# 2. Set environment variable
+export CLAUDECLI_DELEGATION_ENABLED=true
+
+# 3. Enable pool in routing.json:
+#    accounts.pools.claudecli.accounts[0].enabled = true
+```
+
+#### Disable
+
+```bash
+unset CLAUDECLI_DELEGATION_ENABLED
+# or
+export CLAUDECLI_DELEGATION_ENABLED=false
+```
+
+> When disabled, falls back gracefully to existing ohmyclaw routing (GLM-5.1, etc.).
+
+### Multi-Account Pool
+
+Add unlimited Z.ai + ChatGPT OAuth accounts. Round-robin distributes requests; when one account hits a rate limit, it automatically switches to the next (cooldown 60s → max 600s exponential backoff). Fan-out (broadcast to all accounts) is also supported.
+
+```bash
+# Account status
+skills/ohmyclaw/pool.sh status
+
+# Round-robin pick
+skills/ohmyclaw/pool.sh next glm-5.1
+
+# Mark cooldown on rate limit
+skills/ohmyclaw/pool.sh cooldown codex-acct3
+
+# Release cooldown
+skills/ohmyclaw/pool.sh release codex-acct3
+
+# Reset all state
+skills/ohmyclaw/pool.sh reset
+```
+
+## File Structure
+
+```
+skills/ohmyclaw/
+├── SKILL.md            (820 lines)  14 sections
+├── routing.json        (380 lines)  Models/plans/matrix/accounts single source
+├── select-model.sh     (370 lines)  jq-based router
+├── pool.sh             (305 lines)  Account pool manager
+├── claude-delegate.sh  (58 lines)   Experimental Claude Code CLI delegation helper
+├── hud.sh              (370 lines)  Dashboard
+└── prompts/            (1165 lines) 10 role prompts (OMX-style)
+    ├── executor.md, planner.md, architect.md
+    ├── reviewer.md, verifier.md, debugger.md, critic.md
+    ├── team-orchestrator.md, team-executor.md
+    └── README.md
+```
+
+## License
+
+MIT
