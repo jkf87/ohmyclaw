@@ -353,7 +353,7 @@
         "planAware": true,
         "modelPrefixes": ["glm-"],
         "accounts": [
-          { "id": "zai-primary",   "authType": "oauth_zai", "openclawProfile": "default", "plan": "pro",  "weight": 10, "enabled": true  },
+          { "id": "zai-primary",   "authType": "oauth_zai", "openclawProfile": "default", "plan": "max",  "weight": 10, "enabled": true  },
           { "id": "zai-secondary", "authType": "api_key",   "envKey": "ZAI_API_KEY_2",     "plan": "lite", "weight": 5,  "enabled": false },
           { "id": "zai-team-max",  "authType": "oauth_zai", "openclawProfile": "team",     "plan": "max",  "weight": 15, "enabled": false }
         ]
@@ -366,9 +366,9 @@
         "modelPrefixes": ["gpt-"],
         "comment": "활성화: 1) codex login 2) 본 풀 enabled=true 3) CODEX_OAUTH_ENABLED=true",
         "accounts": [
-          { "id": "codex-primary",   "authType": "oauth_codex", "codexHome": "~/.codex",       "weight": 10, "enabled": false },
-          { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": false },
-          { "id": "codex-tertiary",  "authType": "oauth_codex", "codexHome": "~/.codex-acct3", "weight": 10, "enabled": false }
+          { "id": "codex-primary",   "authType": "oauth_codex", "codexHome": "~/.codex",       "weight": 10, "enabled": true },
+          { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": true },
+          { "id": "codex-tertiary",  "authType": "oauth_codex", "codexHome": "~/.codex-acct3", "weight": 10, "enabled": true }
         ]
       },
       "claudecli": {
