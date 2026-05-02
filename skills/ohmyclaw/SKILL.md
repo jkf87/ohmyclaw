@@ -272,13 +272,59 @@ claude login
 - direct OAuth token ingestion 금지, 공식 CLI 세션만 사용
 - helper: `skills/ohmyclaw/claude-delegate.sh`
 
-예시:
+예시 (단일 계정):
 
 ```bash
 SKILL=skills/ohmyclaw
 MODEL=$($SKILL/select-model.sh "보안 경계 재설계" security --claudecli --json)
 $SKILL/claude-delegate.sh "보안 경계 재설계" --cwd="$PROJECT"
 ```
+
+#### 5-4-1. Claude CLI 멀티계정 (`CLAUDE_CONFIG_DIR`)
+
+Codex 의 `CODEX_HOME` 과 동일 패턴으로 Claude CLI 도 계정별 분리 가능. 공식 환경변수 `CLAUDE_CONFIG_DIR` 가 keychain 대신 해당 디렉토리의 `.credentials.json` 을 우선 사용합니다 (anthropics/claude-code 공식 동작, "Respect CLAUDE_CONFIG_DIR everywhere").
+
+**셋업 (한 번만, 계정마다)**:
+
+```bash
+# 1) 두 번째 ChatGPT/Anthropic 계정용 디렉토리에서 로그인
+CLAUDE_CONFIG_DIR=~/.claude-acct2 claude login
+
+# 2) 세 번째도 동일
+CLAUDE_CONFIG_DIR=~/.claude-acct3 claude login
+
+# 3) routing.json 의 claudecli 풀에서 사용할 계정 enabled=true 로 변경
+#    (claudecli-primary / claudecli-secondary / claudecli-tertiary)
+
+# 4) 게이트 활성
+export CLAUDECLI_DELEGATION_ENABLED=true
+```
+
+**3가지 호출 방식**:
+
+```bash
+SKILL=skills/ohmyclaw
+
+# (A) 명시 디렉토리 — 가장 단순
+$SKILL/claude-delegate.sh "..." --config-dir=~/.claude-acct2 --cwd="$PROJECT"
+
+# (B) 환경변수 상속 — 셸/shellrc 에서 일괄 분기
+CLAUDE_CONFIG_DIR=~/.claude-acct3 $SKILL/claude-delegate.sh "..." --cwd="$PROJECT"
+
+# (C) 풀 round-robin — pool.sh 가 자동 픽 + 실패 시 cooldown 마킹
+$SKILL/claude-delegate.sh "..." --from-pool --cwd="$PROJECT"
+```
+
+`--from-pool` 사용 시 호출 실패하면 해당 계정에 자동으로 cooldown (60s → 120s → ... 최대 600s) 이 걸리고 다음 호출은 다른 계정 픽.
+
+```bash
+# 풀 상태 / 라운드로빈 / fan-out
+$SKILL/pool.sh status claudecli
+$SKILL/pool.sh next claude-code-experimental    # 한 계정 픽
+$SKILL/pool.sh fanout claudecli                  # 모든 enabled 계정 출력 (병렬 발사용)
+```
+
+> **macOS 주의**: keychain 에 이미 저장된 credentials 가 있다면 첫 로그인이 keychain 으로 들어갈 수 있음. `CLAUDE_CONFIG_DIR=...` 를 명시하고 로그인하면 해당 디렉토리의 `.credentials.json` 으로 우선 저장됨. 문제가 생기면 `claude doctor` 로 진단.
 
 ---
 
@@ -311,13 +357,23 @@ $SKILL/claude-delegate.sh "보안 경계 재설계" --cwd="$PROJECT"
           { "id": "codex-primary",   "authType": "oauth_codex", "codexHome": "~/.codex",       "weight": 10, "enabled": false },
           { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": false }
         ]
+      },
+      "claudecli": {
+        "providerId": "anthropic-claude-cli",
+        "modelPrefixes": ["claude-code-"],
+        "optional": true,
+        "accounts": [
+          { "id": "claudecli-primary",   "authType": "oauth_claude_cli", "claudeHome": "~/.claude",        "weight": 10, "enabled": false },
+          { "id": "claudecli-secondary", "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct2",  "weight": 10, "enabled": false },
+          { "id": "claudecli-tertiary",  "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct3",  "weight": 10, "enabled": false }
+        ]
       }
     }
   }
 }
 ```
 
-**모델 → 풀 매핑**: prefix 기반. `glm-*` → zai 풀, `gpt-*` → codex 풀. 다른 모델은 reject.
+**모델 → 풀 매핑**: prefix 기반. `glm-*` → zai 풀, `gpt-*` → codex 풀, `claude-code-*` → claudecli 풀. 다른 모델은 reject.
 
 ### 6-2. pool.sh 액션
 
@@ -373,9 +429,10 @@ CMD_TMPL=${ENGINE_LINE#*|}
 
 # 4. 계정 풀에서 고른 자격 적용
 case "$AUTH_TYPE" in
-  oauth_zai)   openclaw-profile activate "$AUTH_VALUE" ;;
-  oauth_codex) export CODEX_HOME="$AUTH_VALUE" ;;
-  api_key)     export ZAI_API_KEY="${!AUTH_VALUE}" ;;
+  oauth_zai)        openclaw-profile activate "$AUTH_VALUE" ;;
+  oauth_codex)      export CODEX_HOME="$AUTH_VALUE" ;;
+  oauth_claude_cli) export CLAUDE_CONFIG_DIR="$AUTH_VALUE" ;;
+  api_key)          export ZAI_API_KEY="${!AUTH_VALUE}" ;;
 esac
 
 # 5. Worker semaphore: maxWorkers 한도 내 슬롯 획득 (만석 시 exit 11)
@@ -450,6 +507,22 @@ ls ~/.codex-acct2/auth.json   # 확인
 
 # 3. 검증
 CODEX_OAUTH_ENABLED=true skills/ohmyclaw/pool.sh status codex
+```
+
+**Claude CLI 두 번째 계정**:
+```bash
+# 1. 별도 디렉토리로 로그인 (브라우저 OAuth 흐름)
+CLAUDE_CONFIG_DIR=~/.claude-acct2 claude login
+ls ~/.claude-acct2/.credentials.json   # 확인 (macOS keychain 우회)
+
+# 2. routing.json 에서 claudecli-secondary 의 enabled 를 true 로 변경
+
+# 3. 검증
+CLAUDECLI_DELEGATION_ENABLED=true skills/ohmyclaw/pool.sh status claudecli
+
+# 4. 풀 round-robin 으로 호출
+CLAUDECLI_DELEGATION_ENABLED=true \
+  skills/ohmyclaw/claude-delegate.sh "리뷰 부탁" --from-pool --cwd="$PROJECT"
 ```
 
 ### 6-7. 전략 선택
@@ -589,9 +662,10 @@ AUTH_VAL=$(echo "$ACCT" | cut -d'|' -f3)
 
 # 인증 적용
 case "$AUTH_TYPE" in
-  oauth_zai)   openclaw-profile activate "$AUTH_VAL" ;;
-  oauth_codex) export CODEX_HOME="$AUTH_VAL" ;;
-  api_key)     export ZAI_API_KEY="${!AUTH_VAL}" ;;
+  oauth_zai)        openclaw-profile activate "$AUTH_VAL" ;;
+  oauth_codex)      export CODEX_HOME="$AUTH_VAL" ;;
+  oauth_claude_cli) export CLAUDE_CONFIG_DIR="$AUTH_VAL" ;;
+  api_key)          export ZAI_API_KEY="${!AUTH_VAL}" ;;
 esac
 
 # 실패 시 cooldown + 다음 계정
@@ -1055,6 +1129,8 @@ CHANGELOG.md, VERSION # P7 — Keep a Changelog + semver
 | `ZAI_API_KEY` | (openclaw config) | Z.AI 메인 API 키 |
 | `ZAI_API_KEY_2` | (none) | Z.AI 보조 API 키 (zai-secondary 계정용) |
 | `CODEX_HOME` | `~/.codex` | Codex OAuth 토큰 디렉토리 (계정별 분리 시 사용) |
+| `CLAUDECLI_DELEGATION_ENABLED` | `false` | Claude CLI delegation 게이트 (실험) |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude CLI 계정 디렉토리 (계정별 분리 시 사용; macOS 에서 keychain 우회) |
 | `OHMYCLAW_STATE_DIR` | `~/.cache/ohmyclaw` | pool.sh state 디렉토리 |
 | `OHMYCLAW_ENGINE` | (none) | 엔진 강제 (omp\|pi\|codex\|claude). 미설정 시 routing.json#engine 순서 |
 | `OHMYCLAW_ENGINE_FALLBACK` | `true` | false 시 1순위 엔진 부재면 폴백 없이 에러 |

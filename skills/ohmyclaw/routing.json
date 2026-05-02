@@ -421,9 +421,11 @@
         "strategy": "round_robin",
         "optional": true,
         "modelPrefixes": ["claude-code-"],
-        "comment": "실험적 경로. 활성화: 1) claude CLI 로그인 완료 2) 본 풀 enabled=true 3) CLAUDECLI_DELEGATION_ENABLED=true",
+        "comment": "실험적 경로. 활성화: 1) claude CLI 로그인 완료 2) 본 풀의 enabled=true 한 계정 3) CLAUDECLI_DELEGATION_ENABLED=true. 멀티계정: CLAUDE_CONFIG_DIR=<path> 로 별도 디렉토리에서 `claude login` 후 해당 계정 enabled=true (codex 의 CODEX_HOME 과 동일 패턴).",
         "accounts": [
-          { "id": "claudecli-primary", "authType": "oauth_claude_cli", "claudeHome": "~/.claude", "weight": 10, "enabled": false }
+          { "id": "claudecli-primary",   "authType": "oauth_claude_cli", "claudeHome": "~/.claude",        "weight": 10, "enabled": false },
+          { "id": "claudecli-secondary", "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct2",  "weight": 10, "enabled": false },
+          { "id": "claudecli-tertiary",  "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct3",  "weight": 10, "enabled": false }
         ]
       },
       "openrouter": {

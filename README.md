@@ -160,7 +160,7 @@ export OPENROUTER_PREFER_FREE=true
 
 활성화 시 `reasoning`, `coding_arch`, `security` 카테고리의 HIGH 복잡도 작업만 Claude Code CLI 로 위임합니다.
 
-#### 설정
+#### 설정 (단일 계정)
 
 ```bash
 # 1. claude CLI 설치 및 로그인
@@ -172,6 +172,46 @@ export CLAUDECLI_DELEGATION_ENABLED=true
 # 3. routing.json 에서 풀 활성화:
 #    accounts.pools.claudecli.accounts[0].enabled = true
 ```
+
+#### 멀티계정 (Claude Pro/Max 구독 여러 개 보유 시)
+
+Codex 의 `CODEX_HOME` 과 동일하게 Claude CLI 도 **`CLAUDE_CONFIG_DIR`** 공식 환경변수로 계정별 디렉토리 분리를 지원합니다 (anthropics/claude-code "Respect CLAUDE_CONFIG_DIR everywhere"). macOS 에서도 keychain 대신 해당 디렉토리의 `.credentials.json` 을 우선 사용합니다.
+
+```bash
+# 1. 계정별 디렉토리에서 OAuth 로그인 (브라우저 흐름)
+claude login                                       # 기본 (~/.claude)
+CLAUDE_CONFIG_DIR=~/.claude-acct2 claude login     # 2번째
+CLAUDE_CONFIG_DIR=~/.claude-acct3 claude login     # 3번째
+mkdir -p ~/.claude-acct3                           # 디렉토리 없다는 오류 시
+
+# 2. routing.json 의 claudecli 풀에 계정 enabled=true (기본 3개 슬롯 제공)
+#    skills/ohmyclaw/routing.json#accounts.pools.claudecli.accounts
+#    { "id": "claudecli-secondary", ..., "claudeHome": "~/.claude-acct2", "enabled": true }
+#    { "id": "claudecli-tertiary",  ..., "claudeHome": "~/.claude-acct3", "enabled": true }
+
+# 3. 게이트 활성
+export CLAUDECLI_DELEGATION_ENABLED=true
+
+# 4. 풀 상태 확인
+skills/ohmyclaw/pool.sh status claudecli
+```
+
+#### 호출 방식 (3가지)
+
+```bash
+SKILL=skills/ohmyclaw
+
+# (A) 명시 디렉토리
+$SKILL/claude-delegate.sh "리뷰 부탁" --config-dir=~/.claude-acct2 --cwd="$PROJECT"
+
+# (B) 환경변수 상속
+CLAUDE_CONFIG_DIR=~/.claude-acct3 $SKILL/claude-delegate.sh "리뷰 부탁" --cwd="$PROJECT"
+
+# (C) 풀 round-robin (실패 시 자동 cooldown 마킹)
+$SKILL/claude-delegate.sh "리뷰 부탁" --from-pool --cwd="$PROJECT"
+```
+
+> **계정 수 제한 없음.** Claude Pro/Max 구독 N개 = OAuth 토큰 N개. `pool.sh` 가 전부 round-robin 으로 순환하며, rate limit hit 시 60초 → 120초 → ... 최대 600초 cooldown 으로 자동 우회합니다.
 
 #### 비활성화
 
@@ -291,6 +331,17 @@ skills/ohmyclaw/pool.sh next glm-5.1   # 라운드로빈 픽 테스트
 
 에이전트가 `routing.json` 편집 + 환경변수 등록 + 검증까지 자동 수행합니다.
 </details>
+
+#### Claude CLI 계정 추가
+
+`CLAUDE_CONFIG_DIR` 환경변수로 ChatGPT/Codex 와 동일하게 계정별 디렉토리 분리. 자세한 셋업/호출 방식은 위 [Claude Code CLI Delegation](#claude-code-cli-delegation--experimental) 섹션 참조.
+
+```bash
+CLAUDE_CONFIG_DIR=~/.claude-acct2 claude login    # 계정마다
+# routing.json 의 claudecli-secondary / tertiary enabled=true
+CLAUDECLI_DELEGATION_ENABLED=true \
+  skills/ohmyclaw/pool.sh status claudecli
+```
 
 #### OpenRouter 계정 추가
 
