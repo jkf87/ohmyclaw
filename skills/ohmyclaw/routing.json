@@ -46,16 +46,23 @@
       "plans": ["pro", "max"],
       "note": "Lite 플랜에서는 사용 불가. select-model.sh 가 자동 강등."
     },
-    "gpt-5.4": {
-      "displayName": "GPT-5.4",
+    "gpt-5.5": {
+      "displayName": "GPT-5.5",
       "tier": "HIGH",
-      "contextWindow": 256000,
-      "maxTokens": 131072,
-      "scores": { "coding": 97, "reasoning": 97, "korean": 97 },
+      "omxRole": "frontier",
       "reasoningMode": true,
       "auth": "oauth_codex",
       "plans": ["oauth"],
-      "note": "ChatGPT Plus/Pro 구독 OAuth 보유 시에만. codex_oauth_enabled=true 일 때 활성."
+      "note": "OMX DEFAULT_FRONTIER_MODEL (oh-my-codex src/config/models.ts). 점수표 없음 — frontier role 라벨로 슬롯 결정. codex_oauth_enabled=true 일 때 활성."
+    },
+    "gpt-5.4": {
+      "displayName": "GPT-5.4 (legacy)",
+      "tier": "HIGH",
+      "omxRole": "legacy",
+      "reasoningMode": true,
+      "auth": "oauth_codex",
+      "plans": ["oauth"],
+      "note": "이전 frontier. gpt-5.5 미사용 시 fallback 두 번째 자리. Codex CLI 가 5.5 미인식할 때 자동 강등."
     },
     "claude-code-experimental": {
       "displayName": "Claude Code CLI Delegation (Experimental)",
@@ -252,14 +259,14 @@
 
   "codexOverlay": {
     "enabledWhen": "codex_oauth_enabled == true",
-    "comment": "GPT-5.4 의 reasoning_score=97, coding_score=97 로 GLM-5.1 대비 소폭 우위. extended thinking 슬롯에 우선 오버레이.",
+    "comment": "OMX DEFAULT_FRONTIER_MODEL=gpt-5.5 를 frontier 슬롯에 오버레이. extended thinking 가능. gpt-5.4 는 legacy fallback.",
     "overrides": {
-      "coding_arch":     { "MEDIUM": "gpt-5.4", "HIGH": "gpt-5.4" },
-      "coding_general":  { "HIGH":   "gpt-5.4" },
-      "debugging":       { "HIGH":   "gpt-5.4" },
-      "security":        { "MEDIUM": "gpt-5.4", "HIGH": "gpt-5.4" },
-      "reasoning":       { "HIGH":   "gpt-5.4" },
-      "data_analysis":   { "HIGH":   "gpt-5.4" }
+      "coding_arch":     { "MEDIUM": "gpt-5.5", "HIGH": "gpt-5.5" },
+      "coding_general":  { "HIGH":   "gpt-5.5" },
+      "debugging":       { "HIGH":   "gpt-5.5" },
+      "security":        { "MEDIUM": "gpt-5.5", "HIGH": "gpt-5.5" },
+      "reasoning":       { "HIGH":   "gpt-5.5" },
+      "data_analysis":   { "HIGH":   "gpt-5.5" }
     }
   },
 
@@ -421,14 +428,14 @@
       "reasoning": ["glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withCodex": {
-      "coding":    ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["gpt-5.4", "glm-5.1", "glm-5"],
-      "reasoning": ["gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5"],
+      "reasoning": ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withClaudeCli": {
-      "coding":    ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5"],
-      "reasoning": ["claude-code-experimental", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5"],
+      "reasoning": ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withOpenRouter": {
       "coding":    ["openrouter-claude-opus-4", "glm-5.1", "glm-5", "glm-5-turbo"],

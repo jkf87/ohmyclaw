@@ -258,7 +258,7 @@ section_models() {
   allowed=$(jq -r --arg p "$PLAN" '.plans[$p].allowedModels | join(", ")' "$ROUTING_FILE")
   blocked=$(jq -r --arg p "$PLAN" '(.plans[$p].blockedModels // []) | if length == 0 then "(none)" else join(", ") end' "$ROUTING_FILE")
 
-  [[ "$CODEX" == "true" ]] && extras="${extras}, gpt-5.4"
+  [[ "$CODEX" == "true" ]] && extras="${extras}, gpt-5.5, gpt-5.4"
   if [[ "$OPENROUTER" == "true" ]]; then
     local or_models
     or_models=$(jq -r '[.models | to_entries[] | select(.value.plans | index("openrouter")) | .key] | join(", ")' "$ROUTING_FILE")

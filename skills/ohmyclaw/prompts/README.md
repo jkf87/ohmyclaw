@@ -13,15 +13,15 @@ OMX (oh-my-codex) 의 role prompt 패턴을 카피한 후 ohmyclaw 통합 블록
 
 | Prompt | 사용 동사 | 카테고리 (auto) | Pro 기본 모델 | +Codex HIGH |
 |--------|----------|-----------------|---------------|-------------|
-| `executor.md` | `$ohmyclaw exec`, `$ohmyclaw ralph` (executor 단계) | `auto` | glm-5 / glm-5.1 | gpt-5.4 |
-| `planner.md` | `$ohmyclaw plan`, `$ohmyclaw deep-interview` | `reasoning` | glm-5.1 | gpt-5.4 |
-| `architect.md` | `$ohmyclaw plan --consensus` 의 architect 단계 | `coding_arch` | glm-5.1 | **gpt-5.4** |
-| `reviewer.md` | `$ohmyclaw review`, `$ohmyclaw ralph` 의 검증 단계 | `reasoning` | glm-5.1 | gpt-5.4 |
-| `verifier.md` | `$ohmyclaw verify`, `$ohmyclaw ralph` | `reasoning` | glm-5.1 | gpt-5.4 |
-| `debugger.md` | `$ohmyclaw debug` | `debugging` | glm-5 | **gpt-5.4** (HIGH) |
-| `critic.md` | `$ohmyclaw plan --consensus` 의 critic 단계 | `reasoning` | glm-5.1 | gpt-5.4 |
-| `team-orchestrator.md` | `$ohmyclaw team N:role` 의 리더 | `reasoning` | glm-5.1 | gpt-5.4 |
-| `team-executor.md` | `$ohmyclaw team N:executor` 의 워커 | `auto` | glm-5 / glm-5.1 | gpt-5.4 |
+| `executor.md` | `$ohmyclaw exec`, `$ohmyclaw ralph` (executor 단계) | `auto` | glm-5 / glm-5.1 | gpt-5.5 |
+| `planner.md` | `$ohmyclaw plan`, `$ohmyclaw deep-interview` | `reasoning` | glm-5.1 | gpt-5.5 |
+| `architect.md` | `$ohmyclaw plan --consensus` 의 architect 단계 | `coding_arch` | glm-5.1 | **gpt-5.5** |
+| `reviewer.md` | `$ohmyclaw review`, `$ohmyclaw ralph` 의 검증 단계 | `reasoning` | glm-5.1 | gpt-5.5 |
+| `verifier.md` | `$ohmyclaw verify`, `$ohmyclaw ralph` | `reasoning` | glm-5.1 | gpt-5.5 |
+| `debugger.md` | `$ohmyclaw debug` | `debugging` | glm-5 | **gpt-5.5** (HIGH) |
+| `critic.md` | `$ohmyclaw plan --consensus` 의 critic 단계 | `reasoning` | glm-5.1 | gpt-5.5 |
+| `team-orchestrator.md` | `$ohmyclaw team N:role` 의 리더 | `reasoning` | glm-5.1 | gpt-5.5 |
+| `team-executor.md` | `$ohmyclaw team N:executor` 의 워커 | `auto` | glm-5 / glm-5.1 | gpt-5.5 |
 
 > Lite 플랜에서는 위 표의 `glm-5.1` 이 `select-model.sh` 의 `cap_for_lite` 에 의해 자동으로 `glm-5` 로 강등됩니다.
 

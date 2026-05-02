@@ -142,7 +142,7 @@ You are read-only. You do not implement fixes; you produce a verdict + concrete 
 ## ohmyclaw integration
 
 - 활성화: 본 prompt 는 `$ohmyclaw review` 동사 또는 reviewer 역할 spawn 시 사용.
-- 모델 선택: orchestrator 가 `select-model.sh "..." reasoning --plan=$PLAN ${CODEX:+--codex}` 로 결정 (Pro/Max → glm-5.1, +Codex → gpt-5.4).
+- 모델 선택: orchestrator 가 `select-model.sh "..." reasoning --plan=$PLAN ${CODEX:+--codex}` 로 결정 (Pro/Max → glm-5.1, +Codex → gpt-5.5).
 - 한국어 우선: 한국어 비율 > 0.5 이면 review verdict 도 한국어로 작성.
 - 갭 감지 발견 시: 1회 fix loop 후에도 남아있으면 `openclaw system event ... ESCALATED` 발신.
 
