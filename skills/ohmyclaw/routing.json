@@ -1,7 +1,45 @@
 {
   "$schema": "https://openclaw.ai/schemas/skill-routing.json",
   "version": "1.0.0",
-  "comment": "Single source of truth for Z.ai Coding Plan routing. Read by select-model.sh and referenced by SKILL.md.",
+  "comment": "Single source of truth for Z.ai Coding Plan routing. Read by select-model.sh, engine.sh, and referenced by SKILL.md.",
+
+  "engine": {
+    "comment": "엔진 경계: ohmyclaw가 모델/계정/키를 선택한 뒤 실제 코딩 에이전트 실행을 ACP(acpx)로 위임한다. oh-my-pi(omp)를 1순위 엔진으로 쓰되 하드포크/벤더링하지 않고 acpx escape hatch('omp acp')로 spawn한다. omp 미설치 시 acpx 내장 어댑터(pi/codex/claude)로 graceful fallback. 우로보로스 reviewer는 omp 엔진 툴(lsp_diagnostics/ast_grep_search)을 그대로 사용한다. engine.sh가 본 블록을 단일 소스로 읽는다.",
+    "boundary": "acp",
+    "client": "acpx",
+    "preferred": ["omp", "pi", "codex", "claude"],
+    "providerEngines": {
+      "zai": ["omp", "pi"],
+      "codex": ["omp", "codex"],
+      "openrouter": ["omp", "codex"]
+    },
+    "acpxAgents": {
+      "omp":    { "mode": "agent-flag", "agent": "omp acp", "comment": "acpx --agent 'omp acp' escape hatch. ~/.acpx/config.json 커스텀 등록 스니펫은 engine.sh acp-config 로 출력." },
+      "pi":     { "mode": "builtin", "subcommand": "pi" },
+      "codex":  { "mode": "builtin", "subcommand": "codex" },
+      "claude": { "mode": "builtin", "subcommand": "claude" }
+    },
+    "permissions": {
+      "comment": "ohmyclaw role → acpx 승인정책. read-only role 은 approve-reads, write role 은 approve-all. omp의 session/request_permission 과 정합.",
+      "reviewer":      "approve-reads",
+      "planner":       "approve-reads",
+      "verifier":      "approve-reads",
+      "critic":        "approve-reads",
+      "architect":     "approve-reads",
+      "executor":      "approve-all",
+      "worker":        "approve-all",
+      "debugger":      "approve-all",
+      "team-executor": "approve-all",
+      "default":       "approve-reads"
+    },
+    "acpxFlags": {
+      "format": "text",
+      "ttl": 300,
+      "timeoutSeconds": 300,
+      "comment": "공통 acpx 기본 플래그. timeout 은 reasoning 모델(glm-5.1/gpt-5.4) extended thinking 대비 300s (SKILL.md §11 권장값과 일치)."
+    },
+    "fallbackComment": "engine.sh 가 providerEngines[provider] 순서대로 command -v 확인. 첫 사용가능 엔진 선택. omp 부재 시 acpx 내장 어댑터로 강등."
+  },
 
   "models": {
     "glm-5-turbo": {

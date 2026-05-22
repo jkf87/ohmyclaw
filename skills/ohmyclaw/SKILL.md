@@ -366,25 +366,24 @@ ACCOUNT_ID=$(echo "$ACCOUNT_LINE" | cut -d'|' -f1)
 AUTH_TYPE=$(echo "$ACCOUNT_LINE" | cut -d'|' -f2)
 AUTH_VALUE=$(echo "$ACCOUNT_LINE" | cut -d'|' -f3)
 
-# 3. 인증 적용 + 실행
+# 3. 엔진/ACP 명령 결정 (omp 우선, 폴백 자동 — § Engine layer 참조)
+ENGINE_LINE=$($SKILL/engine.sh resolve "$MODEL" "$AUTH_TYPE" "${ROLE:-executor}")
+ENGINE=${ENGINE_LINE%%|*}
+CMD_TMPL=${ENGINE_LINE#*|}
+
+# 4. 계정 풀에서 고른 자격 적용
 case "$AUTH_TYPE" in
-  oauth_zai)
-    # OpenClaw profile 사용
-    openclaw-profile activate "$AUTH_VALUE"
-    bash pty:true command:"pi --provider zai --model $MODEL '$TASK'"
-    ;;
-  oauth_codex)
-    # CODEX_HOME 분리
-    CODEX_HOME="$AUTH_VALUE" bash pty:true command:"codex exec --model=$MODEL '$TASK'"
-    ;;
-  api_key)
-    # 환경변수 주입
-    export ZAI_API_KEY="${!AUTH_VALUE}"
-    bash pty:true command:"pi --provider zai --model $MODEL '$TASK'"
-    ;;
+  oauth_zai)   openclaw-profile activate "$AUTH_VALUE" ;;
+  oauth_codex) export CODEX_HOME="$AUTH_VALUE" ;;
+  api_key)     export ZAI_API_KEY="${!AUTH_VALUE}" ;;
 esac
 
-# 4. 실패 시 cooldown 마킹 + 다음 계정으로 재시도
+# 5. 템플릿 치환({{CWD}}/{{TASK}}) 후 실행 — printf %q 로 셸 안전 인용 (인젝션 방지)
+CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$PROJECT")}
+CMD=${CMD//\{\{TASK\}\}/$(printf %q "$TASK")}
+bash pty:true command:"$CMD"
+
+# 6. 실패 시 cooldown 마킹 + 다음 계정으로 재시도 (engine.sh 재호출 불필요)
 if [[ $? -ne 0 ]]; then
   $SKILL/pool.sh cooldown "$ACCOUNT_ID"
   ACCOUNT_LINE=$($SKILL/pool.sh next "$MODEL")
@@ -450,6 +449,55 @@ CODEX_OAUTH_ENABLED=true skills/ohmyclaw/pool.sh status codex
 
 ---
 
+## ⚙️ Engine layer (oh-my-pi / omp via ACP)
+
+ohmyclaw 는 **모델·계정·키만 선택**하고, 실제 코딩 에이전트 실행은 **ACP(Agent Client Protocol) 경계**로 위임합니다. 1순위 엔진은 [oh-my-pi(omp)](https://github.com/can1357/oh-my-pi) 입니다 — hashline 편집, LSP-연동 쓰기, DAP, 네이티브 grep/shell, 영속 Python 을 제공하는 코딩 엔진.
+
+> **로버스트 결정 (no-fork)**: omp 의 27k LoC(TS+Rust) 를 포크/벤더링하지 **않습니다**. `acpx`(설치된 ACP 클라이언트) 의 escape hatch 로 `omp acp` 를 spawn 하므로 업스트림 유지보수 부담이 0 입니다. omp 미설치 시 acpx 내장 어댑터(`pi`/`codex`/`claude`)로, acpx 마저 없으면 직접 CLI 로 **graceful fallback** 합니다.
+
+### 모델 선택 소유권 분할
+
+| 레이어 | 소유 | 도구 |
+|--------|------|------|
+| **ohmyclaw** | 모델 ID 선택, 계정/키, 풀 쿼터(round-robin/cooldown/fan-out), role→권한정책 | `select-model.sh` + `pool.sh` + `routing.json` |
+| **omp (엔진)** | 엔진 툴(lsp/ast/hashline 편집), 세부 role 라우팅(smol subagent fan-out), 세션 권한(`session/request_permission`) | omp 내부 `ModelRegistry` |
+
+ohmyclaw 가 고른 모델은 acpx `--model` 로 omp 세션에 주입됩니다(ACP `session/set_model`). omp 내부의 자체 모델 라우팅과 충돌하지 않도록, **외부에서 명시 모델을 넘기는 쪽**(ohmyclaw)이 우선합니다.
+
+### engine.sh — 엔진/ACP 명령 리졸버
+
+```bash
+SKILL=skills/ohmyclaw
+
+# resolve <model> [authType] [role] → "ENGINE|CMD_TEMPLATE"
+$SKILL/engine.sh resolve glm-5.1 oauth_zai reviewer
+# omp 설치 시:  omp|acpx --agent "omp acp" --model glm-5.1 --cwd {{CWD}} --approve-reads --format text --timeout 300 {{TASK}}
+# omp 미설치 시: pi|acpx --model glm-5.1 --cwd {{CWD}} --approve-reads --format text --timeout 300 pi {{TASK}}
+
+# ~/.acpx/config.json 에 omp 커스텀 에이전트 등록 스니펫
+$SKILL/engine.sh acp-config
+
+# 엔진/acpx 점검
+$SKILL/engine.sh doctor
+```
+
+- 후보 엔진 순서: `routing.json#engine.providerEngines[provider]` (없으면 `engine.preferred`). `glm-*`→zai, `gpt-*`→codex, `openrouter-*`→openrouter.
+- role→권한: `routing.json#engine.permissions` (reviewer/planner/verifier → `--approve-reads`, executor/worker/debugger → `--approve-all`). omp 의 쓰기 권한 게이트와 정합.
+- `{{CWD}}` / `{{TASK}}` 플레이스홀더는 호출측이 치환합니다.
+- `OHMYCLAW_ENGINE=<omp|pi|codex|claude>` 로 엔진 강제, `OHMYCLAW_ENGINE_FALLBACK=false` 로 1순위 부재 시 에러.
+
+### acpx 실측 매핑 (v0.5.0)
+
+| 형태 | 명령 |
+|------|------|
+| omp (escape hatch) | `acpx --agent "omp acp" --model <m> --cwd <dir> <perm> --format text <task>` |
+| pi / codex / claude (내장 어댑터) | `acpx --model <m> --cwd <dir> <perm> --format text <pi\|codex\|claude> <task>` |
+| omp (커스텀 등록 후) | `acpx omp --model <m> <task>` (← `engine.sh acp-config` 등록 시) |
+
+> acpx 글로벌 옵션(`--model`/`--cwd`/`--approve-*`/`--format`/`--timeout`)은 **subcommand 앞**에 위치해야 합니다.
+
+---
+
 ## 7. Composable execution verbs (OMX-style)
 
 기존 Plan→Work→Review 고정 파이프라인 대신, OMX (oh-my-codex) 의 **composable verb** 패턴을 채택합니다. 사용자가 동사를 선택하고, 각 동사가 `prompts/` 의 role prompt 를 합성합니다.
@@ -490,29 +538,32 @@ echo "추천 모델: $MODEL"
 # → 해당 prompt 의 <execution_loop> 대로 진행
 ```
 
-에이전트가 직접 실행하므로 **ACP agent spawn 이 필요 없습니다**.
+에이전트가 직접 실행할 수 있으면 별도 spawn 없이 진행합니다.
 
-#### Sub-agent spawn (병렬 작업 시 — codex/claude/pi CLI 사용)
+#### Sub-agent spawn (병렬/background — engine.sh 경유 ACP)
 
-team 이나 ralph 처럼 병렬 또는 background 실행이 필요할 때만 CLI 를 spawn 합니다:
+team 이나 ralph 처럼 병렬 또는 background 실행이 필요할 때는 **engine.sh 가 결정한 ACP 명령**으로 spawn 합니다. 엔진 선택(omp 우선)·권한·폴백은 engine.sh 가 담당하므로 CLI 를 직접 하드코딩하지 않습니다:
 
 ```bash
 SKILL=skills/ohmyclaw
 MODEL=$($SKILL/select-model.sh "$TASK" auto --plan=$PLAN ${CODEX:+--codex})
 
-# Codex 로 spawn (PTY 필수)
-bash pty:true workdir:"$PROJECT" background:true command:"codex exec --full-auto '$TASK'"
+# 엔진/ACP 명령 결정 (role 로 권한정책 자동 매핑)
+ENGINE_LINE=$($SKILL/engine.sh resolve "$MODEL" "" "${ROLE:-executor}")
+CMD_TMPL=${ENGINE_LINE#*|}
+CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$PROJECT")}
+CMD=${CMD//\{\{TASK\}\}/$(printf %q "$TASK")}
 
-# Claude Code 로 spawn (PTY 불필요, 실험 경로는 helper 사용 권장)
-bash workdir:"$PROJECT" background:true command:"skills/ohmyclaw/claude-delegate.sh '$TASK' --cwd='$PROJECT'"
-
-# Pi 로 spawn (PTY 필수)
-bash pty:true workdir:"$PROJECT" background:true command:"pi '$TASK'"
+# acpx 가 ACP 로 omp(또는 폴백 엔진) 세션을 spawn — background 발사
+bash pty:true workdir:"$PROJECT" background:true command:"$CMD"
 ```
 
-어떤 CLI 를 쓸지는 **모델에 따라 결정**:
-- `glm-*` 모델 → `pi` (Z.ai provider 활성) 또는 `codex` (OpenAI compatible endpoint)
-- `gpt-5.5` / `gpt-5.4` 모델 → `codex` (Codex CLI + ChatGPT OAuth)
+엔진 선택은 **모델→provider→engine.sh** 가 결정합니다:
+- `glm-*` → omp(설치 시) → pi 폴백 (Z.ai provider)
+- `gpt-5.5` / `gpt-5.4` → omp(설치 시) → codex 폴백 (Codex CLI + ChatGPT OAuth)
+- `openrouter-*` → omp → codex 폴백
+
+> 실험적 Claude Code 위임은 `skills/ohmyclaw/claude-delegate.sh` 헬퍼로도 가능합니다 (engine.sh 폴백과 별개의 선택 경로).
 
 #### 계정 풀 연동 (선택)
 
@@ -596,6 +647,8 @@ openclaw system event \
 ```
 → 1회 fix loop 후에도 남아있으면 ESCALATED.
 
+> **우로보로스는 엔진 무관 (omp 이식 후에도 불변)**: `prompts/reviewer.md` 는 이미 omp 엔진 툴 `lsp_diagnostics` / `ast_grep_search` 를 호출하도록 작성돼 있습니다. 엔진을 omp 로 바꾸면 이 툴들이 실제로 채워져 5관점 리뷰가 더 정확해집니다. reviewer 는 read-only role 이므로 engine.sh 가 `--approve-reads` 권한으로 spawn 합니다(쓰기 차단 = omp `session/request_permission` 정합). 갭 5유형(assumption_injection/scope_creep/direction_drift/missing_core/over_engineering)과 `GAP_DETECTED→fix 1회→재리뷰→ESCALATED` 제어흐름은 프롬프트/오케스트레이션 계약이므로 엔진 교체와 무관하게 **그대로 유지**됩니다.
+
 ---
 
 ## 8. Provenance (OMC + OMX 어디서 왔나)
@@ -670,10 +723,11 @@ SKILL=skills/ohmyclaw
 MODEL=$($SKILL/select-model.sh "이 함수에 한국어 주석 추가해줘" auto --plan=pro)
 # → glm-5-turbo (LOW + 한국어)
 
-# 그냥 직접 실행
-bash workdir:~/project command:"
-  zai-runner --model=$MODEL --task='이 함수에 한국어 주석 추가해줘'
-"
+# 엔진/ACP 명령 결정 후 실행 (omp 우선, 폴백 자동)
+CMD_TMPL=$($SKILL/engine.sh resolve "$MODEL" "" executor | cut -d'|' -f2)
+CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+CMD=${CMD//\{\{TASK\}\}/$(printf %q "이 함수에 한국어 주석 추가해줘")}
+bash workdir:~/project command:"$CMD"
 ```
 
 ### 10-2. parallel 모드 (3개 독립 task)
@@ -684,23 +738,24 @@ SKILL=skills/ohmyclaw
 PLAN=pro
 
 for i in 1 2 3; do
-  TASK="api/route$i.ts 에 인증 미들웨어 추가"
+  TASK="api/route$i.ts 에 인증 미들웨어 추가 (DoD: 기존 테스트 통과 + 새 인증 테스트 1개)"
   MODEL=$($SKILL/select-model.sh "$TASK" coding_general --plan=$PLAN)
-  bash pty:true workdir:~/project background:true command:"
-    zai-runner --model=$MODEL --task-id=T$i --task='$TASK' \
-      --dod='기존 테스트 통과 + 새 인증 테스트 1개 추가'
-  "
+  CMD_TMPL=$($SKILL/engine.sh resolve "$MODEL" "" executor | cut -d'|' -f2)
+  CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+  CMD=${CMD//\{\{TASK\}\}/$(printf %q "$TASK")}
+  bash pty:true workdir:~/project background:true command:"$CMD"
 done
 
 # 모니터링
 process action:list
 process action:log sessionId:XXX
 
-# 모두 끝나면 reviewer 스폰
+# 모두 끝나면 reviewer 스폰 (read-only → engine.sh 가 --approve-reads 권한 부여)
 REVIEWER_MODEL=$($SKILL/select-model.sh "review 3 routes" reasoning --plan=$PLAN)
-bash workdir:~/project command:"
-  zai-runner --model=$REVIEWER_MODEL --review --tasks=T1,T2,T3
-"
+RCMD_TMPL=$($SKILL/engine.sh resolve "$REVIEWER_MODEL" "" reviewer | cut -d'|' -f2)
+RCMD=${RCMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+RCMD=${RCMD//\{\{TASK\}\}/$(printf %q "route1-3.ts 5관점 리뷰+갭 감지")}
+bash workdir:~/project command:"$RCMD"
 ```
 
 ### 10-3. full 모드 (Plan→Work→Review)
@@ -714,9 +769,12 @@ CYCLE_ID=cycle-$(date +%Y%m%d-%H%M%S)
 # 1. session-start 알림
 openclaw system event --text "[session-start] cycle=$CYCLE_ID 요약: TODO 검색/필터/영속화" --mode now
 
-# 2. Planner 스폰
+# 2. Planner 스폰 (read-only → reviewer/planner 권한)
 PLANNER=$($SKILL/select-model.sh "decompose: TODO 검색 필터 영속화" reasoning --plan=$PLAN)
-bash workdir:~/project command:"zai-runner --model=$PLANNER --plan-only" > /tmp/plan_v1.yaml
+PCMD_TMPL=$($SKILL/engine.sh resolve "$PLANNER" "" planner | cut -d'|' -f2)
+PCMD=${PCMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+PCMD=${PCMD//\{\{TASK\}\}/$(printf %q "plan-only: TODO 검색/필터/영속화 분해")}
+bash workdir:~/project command:"$PCMD" > /tmp/plan_v1.yaml
 
 # 3. ralplan 게이트 — 사용자 승인 (질문 후 진행)
 cat /tmp/plan_v1.yaml
@@ -727,15 +785,19 @@ read -p "이 plan 으로 진행할까요? (y/n) " ans
 yq '.tasks[] | [.id, .content, .category, .dod] | @tsv' /tmp/plan_v1.yaml | \
 while IFS=$'\t' read tid content cat dod; do
   m=$($SKILL/select-model.sh "$content" "$cat" --plan=$PLAN)
-  bash pty:true workdir:~/project background:true command:"
-    zai-runner --model=$m --task-id=$tid --task='$content' --dod='$dod'
-  "
+  CMD_TMPL=$($SKILL/engine.sh resolve "$m" "" executor | cut -d'|' -f2)
+  CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+  CMD=${CMD//\{\{TASK\}\}/$(printf %q "[$tid] $content (DoD: $dod)")}
+  bash pty:true workdir:~/project background:true command:"$CMD"
 done
 
-# 5. 워커 완료 대기 → Reviewer (5관점 + 갭 감지)
+# 5. 워커 완료 대기 → Reviewer (5관점 + 갭 감지, read-only)
 process action:list  # 전부 ✓ 될 때까지
 REVIEWER=$($SKILL/select-model.sh "5-perspective review + gap" reasoning --plan=$PLAN)
-bash workdir:~/project command:"zai-runner --model=$REVIEWER --review --gap-check"
+RCMD_TMPL=$($SKILL/engine.sh resolve "$REVIEWER" "" reviewer | cut -d'|' -f2)
+RCMD=${RCMD_TMPL//\{\{CWD\}\}/$(printf %q "$HOME/project")}
+RCMD=${RCMD//\{\{TASK\}\}/$(printf %q "5관점 리뷰 + 갭 감지")}
+bash workdir:~/project command:"$RCMD"
 
 # 6. APPROVE 면 session-end, GAP_DETECTED 면 fix loop
 ```
@@ -798,9 +860,24 @@ $SKILL/pool.sh status zai 2>&1 | grep -q "enabled=true" && echo "✓ zai pool ha
 # 10) 풀 round-robin smoke test
 $SKILL/pool.sh next glm-5 >/dev/null 2>&1 && echo "✓ pool round-robin smoke test" || \
   echo "✗ pool.sh next 실패"
+
+# 11) engine.sh 실행 가능
+test -x "$SKILL/engine.sh" && echo "✓ engine.sh executable" || echo "✗ chmod +x engine.sh needed"
+
+# 12) acpx (ACP 경계 — 권장. 없으면 직접 CLI fallback)
+command -v acpx >/dev/null && echo "✓ acpx ($(acpx --version 2>/dev/null | head -1))" || \
+  echo "⚠ acpx 미설치 — 'npm i -g @openclaw/acpx' (없으면 직접 CLI 폴백만 가능)"
+
+# 13) omp (1순위 엔진 — 부재 시 pi/codex/claude 폴백, warn)
+command -v omp >/dev/null && echo "✓ omp (preferred engine)" || \
+  echo "⚠ omp 미설치 — 폴백 동작. 'curl -fsSL https://omp.sh/install | sh'"
+
+# 14) 엔진 resolve + 자체 doctor
+$SKILL/engine.sh doctor >/dev/null 2>&1 && echo "✓ engine.sh doctor OK" || echo "✗ engine.sh doctor 실패"
 ```
 
-기대 출력: `✓ * 8–10개`. 실패 시 해당 항목 해결 후 재시도.
+기대 출력: `✓ * 10–14개` (omp/acpx 미설치는 ⚠ 폴백 정상). 실패(`✗`) 시 해당 항목 해결 후 재시도.
+엔진 경계 상세 점검은 `$SKILL/engine.sh doctor` 단독 실행.
 
 ---
 
@@ -849,8 +926,12 @@ skills/ohmyclaw/
 │                     #   ├── accounts     — pools (zai + codex) + poolDefaults
 │                     #   └── fallbackChains
 ├── select-model.sh   # jq 기반 라우터 — routing.json 읽음, 모델 ID 출력
-└── pool.sh           # jq 기반 계정 풀 — round-robin/cooldown/fan-out
-                      #   액션: next/fanout/cooldown/release/status/reset
+├── pool.sh           # jq 기반 계정 풀 — round-robin/cooldown/fan-out
+│                     #   액션: next/fanout/cooldown/release/status/reset
+├── engine.sh         # ACP 엔진 리졸버 — omp 우선 spawn(acpx), 폴백 pi/codex/claude
+│                     #   액션: resolve/acp-config/doctor
+└── docs/
+    └── engine-acp.md # 엔진 경계(ACP) 설계문서 — no-fork 근거, 소유권 분할, 폴백체인
 ```
 
 ### 13-3. 환경변수
@@ -863,6 +944,8 @@ skills/ohmyclaw/
 | `ZAI_API_KEY_2` | (none) | Z.AI 보조 API 키 (zai-secondary 계정용) |
 | `CODEX_HOME` | `~/.codex` | Codex OAuth 토큰 디렉토리 (계정별 분리 시 사용) |
 | `OHMYCLAW_STATE_DIR` | `~/.cache/ohmyclaw` | pool.sh state 디렉토리 |
+| `OHMYCLAW_ENGINE` | (none) | 엔진 강제 (omp\|pi\|codex\|claude). 미설정 시 routing.json#engine 순서 |
+| `OHMYCLAW_ENGINE_FALLBACK` | `true` | false 시 1순위 엔진 부재면 폴백 없이 에러 |
 | `OMX_OPENCLAW` | (none) | bridge notifications 활성 |
 | `HOOKS_TOKEN` | (none) | bridge bearer token |
 
