@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: lint + schema + bats (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats + jq (ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats jq shellcheck
+
+      - name: Install bats + jq + shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bats-core jq shellcheck
+
+      - name: Set up Node (for ajv-cli)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: bash -n on all .sh
+        run: make syntax
+
+      - name: shellcheck
+        run: make lint
+
+      - name: JSON schema validation (routing + bridge-event)
+        run: make schema
+
+      - name: engine doctor
+        run: make doctor
+
+      - name: bats test suite
+        run: make test

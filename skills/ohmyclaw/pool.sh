@@ -36,6 +36,54 @@ fi
 now() { date +%s; }
 
 # ──────────────────────────────────────────────
+# Portable file lock (flock on Linux, mkdir-loop on macOS) — concurrency safety
+# 사용 패턴:
+#   with_state_lock <function-name> [args...]
+# 임계 영역 안에서 STATE_FILE 을 read-modify-write 한다.
+# ──────────────────────────────────────────────
+LOCK_FILE="${STATE_FILE}.lock"
+LOCK_DIR="${STATE_FILE}.lockdir"
+LOCK_TIMEOUT_MS="${OHMYCLAW_LOCK_TIMEOUT_MS:-10000}"
+
+_acquire_lock_mkdir() {
+  local tries=0 max=$((LOCK_TIMEOUT_MS / 50))
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    sleep 0.05
+    tries=$((tries+1))
+    if [[ $tries -gt $max ]]; then
+      echo "ERROR: pool.sh lock timeout (${LOCK_TIMEOUT_MS}ms) on $LOCK_DIR" >&2
+      return 2
+    fi
+  done
+}
+_release_lock_mkdir() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
+
+with_state_lock() {
+  local fn="$1"; shift
+  if command -v flock >/dev/null 2>&1; then
+    # Linux/CI 경로 — flock 가용
+    (
+      flock -w "$(( LOCK_TIMEOUT_MS / 1000 + 1 ))" -x 9 || { echo "ERROR: flock timeout" >&2; exit 2; }
+      "$fn" "$@"
+    ) 9>"$LOCK_FILE"
+  else
+    # macOS portable 경로
+    _acquire_lock_mkdir || return 2
+    local rc=0
+    "$fn" "$@" || rc=$?
+    _release_lock_mkdir
+    return $rc
+  fi
+}
+
+# Atomic state write helper: jq filter + atomic rename
+# 사용: state_write_atomic '<jq filter>' [jq args...]
+state_write_atomic() {
+  local filter="$1"; shift
+  jq "$@" "$filter" "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+}
+
+# ──────────────────────────────────────────────
 # 모델 → 풀 ID 매핑
 # ──────────────────────────────────────────────
 pool_for_model() {
@@ -276,20 +324,112 @@ action_reset() {
 }
 
 # ──────────────────────────────────────────────
+# Worker semaphore (P5 — maxWorkers 강제 + PID 추적)
+#   슬롯 디렉토리: ${STATE_DIR}/pids/<session>/
+#   각 슬롯 파일 = 비었거나 "<pid>" 한 줄. 파일 존재 = 슬롯 점유.
+#   PID 살아있음 검사로 dead 슬롯 자동 회수.
+# ──────────────────────────────────────────────
+PIDS_ROOT="${STATE_DIR}/pids"
+_session_id() { echo "${OHMYCLAW_SESSION_ID:-$PPID}"; }
+_pids_dir()   { echo "${PIDS_ROOT}/$(_session_id)"; }
+_max_workers() {
+  local plan="${ZAI_CODING_PLAN:-pro}"
+  jq -r --arg p "$plan" '.plans[$p].concurrency.maxWorkers // 4' "$ROUTING_FILE"
+}
+
+# 살아있는(또는 token 만 있고 PID 미기록) 슬롯 카운트
+_active_slot_count() {
+  local d; d="$(_pids_dir)"
+  [[ -d "$d" ]] || { echo 0; return; }
+  local count=0 f pid
+  for f in "$d"/slot-*; do
+    [[ -e "$f" ]] || continue
+    pid=$(cat "$f" 2>/dev/null | tr -d '[:space:]')
+    if [[ -z "$pid" ]]; then
+      # PID 미기록 슬롯 — acquire 직후 spawn 전 상태도 점유로 간주
+      count=$((count+1))
+    elif kill -0 "$pid" 2>/dev/null; then
+      count=$((count+1))
+    else
+      # dead PID — 즉시 회수
+      rm -f "$f"
+    fi
+  done
+  echo "$count"
+}
+
+action_acquire_worker() {
+  local d; d="$(_pids_dir)"
+  mkdir -p "$d"
+  local maxw; maxw="$(_max_workers)"
+  local active; active="$(_active_slot_count)"
+  if (( active >= maxw )); then
+    echo "ERROR: worker semaphore full (active=$active / max=$maxw, plan=${ZAI_CODING_PLAN:-pro})" >&2
+    return 11
+  fi
+  # 슬롯 파일 생성 (atomic) — mktemp 로 unique
+  local slot
+  slot=$(mktemp "${d}/slot-XXXXXX")
+  echo "TOKEN=${slot}"
+  echo "[pool] acquired slot ${slot##*/} ($((active+1))/$maxw, plan=${ZAI_CODING_PLAN:-pro})" >&2
+}
+
+action_release_worker() {
+  local token="${1:-}"
+  if [[ -z "$token" ]]; then
+    echo "Usage: $0 release-worker <token>" >&2
+    return 1
+  fi
+  # 안전: 슬롯 디렉토리 하위만 허용
+  local pids_root="${PIDS_ROOT}/"
+  case "$token" in
+    "$pids_root"*) ;;
+    *) echo "ERROR: invalid token (must be under ${PIDS_ROOT}): $token" >&2; return 1 ;;
+  esac
+  rm -f "$token"
+  echo "[pool] released slot ${token##*/}" >&2
+}
+
+action_sweep() {
+  local d; d="$(_pids_dir)"
+  [[ -d "$d" ]] || { echo "[pool] no pids dir for session $(_session_id)" >&2; return 0; }
+  local removed=0 kept=0 f pid
+  for f in "$d"/slot-*; do
+    [[ -e "$f" ]] || continue
+    pid=$(cat "$f" 2>/dev/null | tr -d '[:space:]')
+    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$f"; removed=$((removed+1))
+    else
+      kept=$((kept+1))
+    fi
+  done
+  echo "[pool] sweep session=$(_session_id) removed=$removed kept=$kept" >&2
+}
+
+# ──────────────────────────────────────────────
 # 디스패치
 # ──────────────────────────────────────────────
 case "${1:-}" in
-  next)     shift; action_next "${1:-}" ;;
+  # write actions — 임계 영역(read-modify-write)을 락으로 보호 (concurrency safety)
+  next)     shift; with_state_lock action_next     "${1:-}" ;;
+  cooldown) shift; with_state_lock action_cooldown "${1:-}" ;;
+  release)  shift; with_state_lock action_release  "${1:-}" ;;
+  reset)    with_state_lock action_reset ;;
+
+  # worker semaphore (P5/F2/F5) — maxWorkers 강제 + PID 추적
+  acquire-worker) shift; with_state_lock action_acquire_worker "$@" ;;
+  release-worker) shift; with_state_lock action_release_worker "$@" ;;
+  sweep)          shift; with_state_lock action_sweep          "$@" ;;
+
+  # read-only — 락 불필요
   fanout)   shift; action_fanout "${1:-}" ;;
-  cooldown) shift; action_cooldown "${1:-}" ;;
-  release)  shift; action_release "${1:-}" ;;
   status)   shift; action_status "${1:-}" ;;
-  reset)    action_reset ;;
+
   *)
     cat <<EOF >&2
 Usage: $0 <action> [args...]
 
-Actions:
+Account pool actions:
   next <model>          Round-robin 픽 → "id|authType|authValue|plan|weight"
   fanout <providerId>   풀의 enabled 계정 전부 출력
   cooldown <id>         계정 cooldown 마킹 (rate limit 히트 시)
@@ -297,8 +437,18 @@ Actions:
   status [providerId]   풀 상태 + cooldown 잔여 시간
   reset                 state 전체 리셋
 
+Worker semaphore actions (P5 — maxWorkers 강제):
+  acquire-worker [session]   PLAN.concurrency.maxWorkers 한도 내 슬롯 획득
+                             → stdout: "TOKEN=<slot-path>" (성공) / exit 11 (만석)
+                             caller 는 spawn 후 'echo \$child_pid > \$TOKEN' 로 PID 기록
+  release-worker <token>     슬롯 해제
+  sweep [session]            dead PID 슬롯 청소
+
 Env:
   OHMYCLAW_STATE_DIR    state 디렉토리 (기본: ~/.cache/ohmyclaw)
+  OHMYCLAW_SESSION_ID   worker semaphore 세션 (기본: \$PPID)
+  OHMYCLAW_LOCK_TIMEOUT_MS  락 타임아웃 (기본: 10000)
+  ZAI_CODING_PLAN       worker 슬롯 한도 결정 (lite/pro/max)
   CODEX_OAUTH_ENABLED   codex 풀 사용 시 true 필수
   CLAUDECLI_DELEGATION_ENABLED  claudecli 풀 사용 시 true 필수
   OPENROUTER_ENABLED    openrouter 풀 사용 시 true 필수 (OPENROUTER_API_KEY 도 필요)

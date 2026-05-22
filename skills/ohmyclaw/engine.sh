@@ -227,6 +227,26 @@ cmd_doctor() {
     echo "✗ acp-config 스니펫 무효"; rc=1
   fi
 
+  # 7) JSON Schema 검증 (ajv-cli 가 있을 때만) — P4/F3
+  local schema="$SCRIPT_DIR/schemas/routing.schema.json"
+  if [[ -f "$schema" ]]; then
+    if command -v ajv >/dev/null 2>&1; then
+      if ajv validate --spec=draft2020 -s "$schema" -d "$ROUTING_FILE" >/dev/null 2>&1; then
+        echo "✓ routing.json against schema (ajv)"
+      else
+        echo "✗ routing.json schema violation — run: ajv validate --spec=draft2020 -s $schema -d $ROUTING_FILE"; rc=1
+      fi
+    elif command -v npx >/dev/null 2>&1; then
+      if npx -y ajv-cli@5 validate --spec=draft2020 -s "$schema" -d "$ROUTING_FILE" >/dev/null 2>&1; then
+        echo "✓ routing.json against schema (npx ajv-cli)"
+      else
+        echo "✗ routing.json schema violation"; rc=1
+      fi
+    else
+      echo "ℹ ajv 미설치 — schema 검증 건너뜀 (CI 에서만 강제)"
+    fi
+  fi
+
   echo "=== doctor rc=$rc ==="
   return $rc
 }

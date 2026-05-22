@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.ai/schemas/ohmyclaw-bridge-event.json",
+  "title": "ohmyclaw bridge event",
+  "description": "OMX 호환 ohmyclaw 브릿지 이벤트의 구조화 페이로드. SKILL.md §9 의 free-form 텍스트를 대체한다.",
+  "type": "object",
+  "required": ["version", "type", "session", "ts", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "이벤트 스키마 버전 (semver). 호환성 게이팅용.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "type": {
+      "type": "string",
+      "description": "OMX 훅 매핑 — SKILL.md §9-2 의 상태 전이 종류.",
+      "enum": [
+        "session-start",
+        "session-end",
+        "session-idle",
+        "stop",
+        "ask-user-question",
+        "gap-detected",
+        "phase-transition"
+      ]
+    },
+    "session": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id":      { "type": "string", "minLength": 1 },
+        "cycle":   { "type": "string" },
+        "project": { "type": "string" },
+        "phase":   { "type": "string", "enum": ["IDLE", "PLANNING", "WORKING", "REVIEWING", "ESCALATED", "COMPLETE"] }
+      }
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO 8601 UTC 발신 시각 (예: 2026-05-23T01:00:00Z).",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "payload": {
+      "type": "object",
+      "description": "type 별 페이로드. summary 는 하위호환 텍스트 1줄(기존 --text 매핑).",
+      "additionalProperties": true,
+      "properties": {
+        "summary":        { "type": "string" },
+        "priorityTasks":  { "type": "array", "items": { "type": "string" } },
+        "risks":          { "type": "array", "items": { "type": "string" } },
+        "question":       { "type": "string" },
+        "recommended":    { "type": "string" },
+        "impact":         { "type": "string" },
+        "outcome":        { "type": "string" },
+        "verification":   { "type": "string" },
+        "nextActions":    { "type": "array", "items": { "type": "string" } },
+        "gapType":        { "type": "string", "enum": ["assumption_injection", "scope_creep", "direction_drift", "missing_core", "over_engineering"] },
+        "gapReason":      { "type": "string" },
+        "fixIteration":   { "type": "integer", "minimum": 0 },
+        "model":          { "type": "string" },
+        "engine":         { "type": "string", "enum": ["omp", "pi", "codex", "claude"] },
+        "agent":          { "type": "string" },
+        "durationMs":     { "type": "integer", "minimum": 0 },
+        "errorClass":     { "type": "string" }
+      }
+    }
+  }
+}

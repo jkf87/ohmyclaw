@@ -4,6 +4,7 @@
 
 Z.ai 코딩플랜(Lite/Pro/Max) + ChatGPT Codex OAuth + **OpenRouter** (200+ 모델) 다중 계정을 하나의 스킬로 라우팅하고, OMX 스타일 composable verbs (`/ohmyclaw exec`, `/ohmyclaw team`, `/ohmyclaw ralph`, `/ohmyclaw plan`, `/ohmyclaw review`, `/ohmyclaw debug`, `/ohmyclaw`)로 작업을 실행합니다.
 
+[![CI](https://github.com/jkf87/ohmyclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/jkf87/ohmyclaw/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jkf87/ohmyclaw)](https://github.com/jkf87/ohmyclaw/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -461,7 +462,7 @@ skills/ohmyclaw/
 - [oh-my-pi (omp)](https://github.com/can1357/oh-my-pi) — 1순위 코딩 엔진 (ACP 경계로 통합, MIT)
 - [acpx](https://github.com/openclaw/acpx) — ACP 클라이언트 (엔진 spawn)
 - oh-my-claudecode (OMC) — ralph/team/deep-interview 컨셉
-- 우로보로스 하네스 — 갭 감지 5유형
+- [Ouroboros (Q00/ouroboros)](https://github.com/Q00/ouroboros) — spec-first agent runtime (Python+Rust, PyPI). **실제 매커니즘**은 4차원 가중 *Ambiguity Score* (≤0.2 게이트). 본 프로젝트의 갭 5유형(`assumption_injection / scope_creep / direction_drift / missing_core / over_engineering`)은 ohmyclaw 자체 분류이며, Ouroboros 의 "명확성 게이트" 철학에서 영감을 받았으나 동일하지 않다.
 
 ## 라이선스
 

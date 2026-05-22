@@ -378,13 +378,26 @@ case "$AUTH_TYPE" in
   api_key)     export ZAI_API_KEY="${!AUTH_VALUE}" ;;
 esac
 
-# 5. 템플릿 치환({{CWD}}/{{TASK}}) 후 실행 — printf %q 로 셸 안전 인용 (인젝션 방지)
+# 5. Worker semaphore: maxWorkers 한도 내 슬롯 획득 (만석 시 exit 11)
+#    주의: acquire-worker 직후 PID 기록 전에 프로세스가 SIGKILL 되면 슬롯은
+#    `pool.sh reset` 또는 명시 release-worker 까지 점유 상태로 남는다
+#    (보수적 conservation — capacity 초과배정 방지 우선).
+SLOT=$($SKILL/pool.sh acquire-worker | sed -n 's/^TOKEN=//p')
+[[ -z "$SLOT" ]] && { echo "[ohmyclaw] 워커 슬롯 만석 — 잠시 후 재시도"; exit 11; }
+
+# 6. 템플릿 치환({{CWD}}/{{TASK}}) 후 실행 — printf %q 로 셸 안전 인용 (인젝션 방지)
 CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$PROJECT")}
 CMD=${CMD//\{\{TASK\}\}/$(printf %q "$TASK")}
-bash pty:true command:"$CMD"
+bash pty:true command:"$CMD" &
+CHILD_PID=$!
+echo "$CHILD_PID" > "$SLOT"     # PID 추적 (sweep 이 dead 시 회수)
+wait "$CHILD_PID"; STATUS=$?
 
-# 6. 실패 시 cooldown 마킹 + 다음 계정으로 재시도 (engine.sh 재호출 불필요)
-if [[ $? -ne 0 ]]; then
+# 7. 슬롯 해제
+$SKILL/pool.sh release-worker "$SLOT"
+
+# 8. 실패 시 cooldown 마킹 + 다음 계정으로 재시도 (engine.sh 재호출 불필요)
+if [[ $STATUS -ne 0 ]]; then
   $SKILL/pool.sh cooldown "$ACCOUNT_ID"
   ACCOUNT_LINE=$($SKILL/pool.sh next "$MODEL")
   # ... 재시도
@@ -659,7 +672,7 @@ openclaw system event \
 |------|-----------|-------------|
 | **OMX** (oh-my-codex, MIT) | prompts/ XML contract 포맷, verb 패턴 ($ralph/$team/$plan), role 분리 (executor/verifier/architect/critic) | 카피 + `## ohmyclaw integration` 블록, 모델/계정 선택 통합 |
 | **OMC** (oh-my-claudecode) | ralph loop, deep-interview gating, team isolation, ultraqa cycling, ai-slop-cleaner 원칙 | 동사 이름 공유, reviewer.md Stage 5 갭 감지 |
-| **우로보로스 하네스** | 갭 유형 5종 (assumption_injection, scope_creep, direction_drift, missing_core, over_engineering) | reviewer.md Stage 5 로 통합 |
+| **[Ouroboros (Q00/ouroboros)](https://github.com/Q00/ouroboros)** | 명확성 게이트 철학 (실제 매커니즘은 4차원 가중 *Ambiguity Score* ≤0.2). 갭 유형 5종(`assumption_injection/scope_creep/direction_drift/missing_core/over_engineering`)은 본 프로젝트 자체 분류 — Ouroboros 자체 enumerator 가 아님 | reviewer.md Stage 5 로 통합 |
 
 > 원본 참조: https://github.com/Yeachan-Heo/oh-my-codex (MIT)
 
@@ -688,24 +701,48 @@ export OMX_OPENCLAW_COMMAND_TIMEOUT_MS=120000
 | `사용자 취소 / kill` | `stop` |
 | `agent idle > 60s` | `session-idle` |
 
-### 9-3. 발신 예시
+### 9-3. 발신 예시 — 구조화 JSON 페이로드 (v1.1.0+)
+
+v1.1.0 부터 이벤트는 `schemas/bridge-event.schema.json` 에 정합한 **구조화 JSON 페이로드**로 발신합니다. `--text` 가 그대로 들어가는 OMX 호환 슬롯에는 `payload.summary` 한 줄을 넣어 하위호환을 유지합니다.
 
 ```bash
-# session-start (Plan 단계 진입)
-openclaw system event \
-  --text "[session-start|exec] project=${PROJECT} cycle=${CYCLE_ID}\n요약: ${SUMMARY}\n우선순위: ${TOP_TASKS}\n주의사항: ${RISKS}" \
-  --mode now
+# session-start (Plan 단계 진입) — JSON 페이로드 + summary 하위호환 라인
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+PAYLOAD=$(jq -c -n \
+  --arg v "1.0.0" --arg t "session-start" --arg ts "$TS" \
+  --arg sid "$SESSION_ID" --arg cycle "$CYCLE_ID" --arg proj "$PROJECT" --arg phase "PLANNING" \
+  --arg sum "$SUMMARY" \
+  --argjson tasks "$(printf '%s\n' "${TOP_TASKS[@]}" | jq -R . | jq -cs .)" \
+  --argjson risks "$(printf '%s\n' "${RISKS[@]}" | jq -R . | jq -cs .)" \
+  '{version:$v, type:$t, ts:$ts,
+    session:{id:$sid, cycle:$cycle, project:$proj, phase:$phase},
+    payload:{summary:$sum, priorityTasks:$tasks, risks:$risks}}')
+openclaw system event --text "$PAYLOAD" --mode now
 
 # ask-user-question (ESCALATED)
-openclaw system event \
-  --text "[ask-user-question|exec] session=${SESSION_ID} question=${Q}\n핵심질문: ${CORE_Q}\n영향: ${IMPACT}\n권장응답: ${RECOMMENDED}" \
-  --mode now
+PAYLOAD=$(jq -c -n \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sid "$SESSION_ID" \
+  --arg q "$Q" --arg imp "$IMPACT" --arg rec "$RECOMMENDED" \
+  '{version:"1.0.0", type:"ask-user-question", ts:$ts,
+    session:{id:$sid, phase:"ESCALATED"},
+    payload:{summary:$q, question:$q, impact:$imp, recommended:$rec}}')
+openclaw system event --text "$PAYLOAD" --mode now
 
-# session-end (COMPLETE)
-openclaw system event \
-  --text "[session-end|exec] reason=success\n성과: ${OUTCOME}\n검증: ${VERIFICATION}\n다음: ${NEXT_ACTIONS}" \
-  --mode now
+# gap-detected (우로보로스 갭 발견)
+PAYLOAD=$(jq -c -n \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sid "$SESSION_ID" \
+  --arg gt "$GAP_TYPE" --arg gr "$GAP_REASON" --argjson fi "${FIX_ITER:-0}" \
+  '{version:"1.0.0", type:"gap-detected", ts:$ts,
+    session:{id:$sid, phase:"REVIEWING"},
+    payload:{summary:("[" + $gt + "] " + $gr), gapType:$gt, gapReason:$gr, fixIteration:$fi}}')
+openclaw system event --text "$PAYLOAD" --mode now
 ```
+
+- **스키마**: `skills/ohmyclaw/schemas/bridge-event.schema.json`
+- **검증**: `make schema` (CI 에서 강제), 또는 `engine.sh doctor`
+- **type 종류**: `session-start`/`session-end`/`session-idle`/`stop`/`ask-user-question`/`gap-detected`/`phase-transition`
+- **gapType 5종**: `assumption_injection / scope_creep / direction_drift / missing_core / over_engineering`
+- **하위호환**: 외부 수신자가 텍스트 1줄만 기대해도 `payload.summary` 만 읽으면 동작
 
 ### 9-4. 한국어 우선 instruction
 
@@ -872,12 +909,14 @@ command -v acpx >/dev/null && echo "✓ acpx ($(acpx --version 2>/dev/null | hea
 command -v omp >/dev/null && echo "✓ omp (preferred engine)" || \
   echo "⚠ omp 미설치 — 폴백 동작. 'curl -fsSL https://omp.sh/install | sh'"
 
-# 14) 엔진 resolve + 자체 doctor
+# 14) 엔진 resolve + 자체 doctor (ajv 가용 시 routing.schema.json 도 검증)
 $SKILL/engine.sh doctor >/dev/null 2>&1 && echo "✓ engine.sh doctor OK" || echo "✗ engine.sh doctor 실패"
 ```
 
 기대 출력: `✓ * 10–14개` (omp/acpx 미설치는 ⚠ 폴백 정상). 실패(`✗`) 시 해당 항목 해결 후 재시도.
 엔진 경계 상세 점검은 `$SKILL/engine.sh doctor` 단독 실행.
+
+> **CI/로컬 통합 점검**: 리포 루트에서 `make ci` 실행 — `bash -n`, shellcheck(설치 시), routing/bridge-event JSON Schema (ajv-cli), engine doctor, bats 58+ 케이스 까지 한 번에. CI 워크플로(`.github/workflows/ci.yml`)가 PR 마다 동일 게이트로 강제합니다.
 
 ---
 
@@ -930,8 +969,20 @@ skills/ohmyclaw/
 │                     #   액션: next/fanout/cooldown/release/status/reset
 ├── engine.sh         # ACP 엔진 리졸버 — omp 우선 spawn(acpx), 폴백 pi/codex/claude
 │                     #   액션: resolve/acp-config/doctor
+├── schemas/          # P4/P6 — JSON Schema (ajv-cli, CI 강제)
+│   ├── routing.schema.json       # routing.json 구조 검증
+│   └── bridge-event.schema.json  # bridge 이벤트 페이로드 검증
 └── docs/
     └── engine-acp.md # 엔진 경계(ACP) 설계문서 — no-fork 근거, 소유권 분할, 폴백체인
+```
+
+리포 루트:
+```
+tests/                # P1 — bats 슈트 (58+ 케이스)
+├── helpers.bash, select-model.bats, engine.bats, pool.bats
+Makefile              # test/lint/schema/doctor/syntax/ci 타깃
+.github/workflows/ci.yml   # P3 — PR/푸시 CI (ubuntu+macos)
+CHANGELOG.md, VERSION # P7 — Keep a Changelog + semver
 ```
 
 ### 13-3. 환경변수

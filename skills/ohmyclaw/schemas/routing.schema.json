@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.ai/schemas/skill-routing.json",
+  "title": "ohmyclaw routing.json",
+  "description": "ohmyclaw 라우팅·엔진·풀 단일 소스 스키마. ajv-cli 로 CI/doctor 에서 검증.",
+  "type": "object",
+  "required": ["version", "engine", "models", "plans", "matrix", "accounts"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema":  { "type": "string" },
+    "version":  { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "comment":  { "type": "string" },
+
+    "engine": {
+      "type": "object",
+      "required": ["boundary", "client", "preferred", "providerEngines", "acpxAgents", "permissions"],
+      "additionalProperties": true,
+      "properties": {
+        "comment":         { "type": "string" },
+        "boundary":        { "type": "string", "enum": ["acp"] },
+        "client":          { "type": "string", "enum": ["acpx"] },
+        "preferred":       { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["omp", "pi", "codex", "claude"] } },
+        "providerEngines": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["omp", "pi", "codex", "claude"] } }
+        },
+        "acpxAgents": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["mode"],
+            "properties": {
+              "mode":       { "type": "string", "enum": ["agent-flag", "builtin"] },
+              "agent":      { "type": "string" },
+              "subcommand": { "type": "string" },
+              "comment":    { "type": "string" }
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "required": ["default"],
+          "properties": {
+            "comment": { "type": "string" }
+          },
+          "additionalProperties": { "type": "string", "enum": ["approve-all", "approve-reads", "deny-all"] }
+        },
+        "acpxFlags": {
+          "type": "object",
+          "properties": {
+            "format":         { "type": "string", "enum": ["text", "json", "quiet"] },
+            "ttl":            { "type": "integer", "minimum": 0 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "comment":        { "type": "string" }
+          }
+        },
+        "fallbackComment": { "type": "string" }
+      }
+    },
+
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["displayName", "tier"],
+        "anyOf": [
+          { "required": ["scores"] },
+          { "required": ["omxRole"] }
+        ],
+        "properties": {
+          "displayName":   { "type": "string" },
+          "tier":          { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+          "contextWindow": { "type": "integer", "minimum": 1 },
+          "maxTokens":     { "type": "integer", "minimum": 1 },
+          "scores": {
+            "type": "object",
+            "required": ["coding", "reasoning", "korean"],
+            "properties": {
+              "coding":    { "type": "integer", "minimum": 0, "maximum": 100 },
+              "reasoning": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "korean":    { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          },
+          "omxRole":         { "type": "string", "enum": ["frontier", "legacy"], "description": "score 없이 역할 라벨로 슬롯 결정 (OMX 호환 모델)." },
+          "reasoningMode":   { "type": "boolean" },
+          "anthropicAlias":  { "type": "string" },
+          "auth":            { "type": "string" },
+          "openrouterId":    { "type": "string" },
+          "free":            { "type": "boolean" },
+          "plans":           { "type": "array", "items": { "type": "string" } },
+          "note":            { "type": "string" }
+        }
+      }
+    },
+
+    "plans": {
+      "type": "object",
+      "required": ["lite", "pro", "max"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["allowedModels", "quota", "concurrency", "fixLoopMaxIterations"],
+        "properties": {
+          "priceUsdMonth":        { "type": "number", "minimum": 0 },
+          "allowedModels":        { "type": "array", "items": { "type": "string" } },
+          "blockedModels":        { "type": "array", "items": { "type": "string" } },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "dailyTokens":    { "type": "integer", "minimum": 0 },
+              "sessionTokens":  { "type": "integer", "minimum": 0 },
+              "taskTokens":     { "type": "integer", "minimum": 0 },
+              "dailyRequests":  { "type": "integer", "minimum": 0 }
+            }
+          },
+          "concurrency": {
+            "type": "object",
+            "required": ["maxWorkers"],
+            "properties": {
+              "maxWorkers":       { "type": "integer", "minimum": 1 },
+              "maxTotalSessions": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "fixLoopMaxIterations": { "type": "integer", "minimum": 0 },
+          "pipelineModes":        { "type": "array", "items": { "type": "string" } },
+          "prioritySlot":         { "type": "boolean" }
+        }
+      }
+    },
+
+    "matrix": {
+      "type": "object",
+      "required": ["lite", "pro", "max"],
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["LOW", "MEDIUM", "HIGH"],
+          "properties": {
+            "LOW":    { "type": "string" },
+            "MEDIUM": { "type": "string" },
+            "HIGH":   { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "codexOverlay":          { "type": "object" },
+    "openrouterOverlay":     { "type": "object" },
+    "openrouterFreeOverlay": { "type": "object" },
+
+    "complexityTiers": {
+      "type": "object",
+      "required": ["LOW", "MEDIUM", "HIGH"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["min", "max"],
+        "properties": {
+          "min": { "type": "integer", "minimum": 0 },
+          "max": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+
+    "reasoningDetection": {
+      "type": "object",
+      "required": ["enabled", "minScore"],
+      "properties": {
+        "enabled":       { "type": "boolean" },
+        "minScore":      { "type": "integer", "minimum": 0 },
+        "keywordsKo":    { "type": "array", "items": { "type": "string" } },
+        "keywordsEn":    { "type": "array", "items": { "type": "string" } },
+        "categories":    { "type": "array", "items": { "type": "string" } },
+        "categoryBonus": { "type": "integer" },
+        "keywordBonus":  { "type": "integer" },
+        "comment":       { "type": "string" }
+      }
+    },
+
+    "koreanDetection": {
+      "type": "object",
+      "properties": {
+        "enabled":         { "type": "boolean" },
+        "thresholds":      { "type": "object" },
+        "codingOverride":  { "type": "boolean" }
+      }
+    },
+
+    "accounts": {
+      "type": "object",
+      "required": ["pools"],
+      "properties": {
+        "comment":      { "type": "string" },
+        "poolDefaults": { "type": "object" },
+        "pools": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["providerId", "accounts"],
+            "properties": {
+              "providerId":        { "type": "string" },
+              "baseUrl":           { "type": "string" },
+              "anthropicBaseUrl":  { "type": "string" },
+              "strategy":          { "type": "string", "enum": ["round_robin", "fan_out"] },
+              "planAware":         { "type": "boolean" },
+              "optional":          { "type": "boolean" },
+              "modelPrefixes":     { "type": "array", "items": { "type": "string" } },
+              "comment":           { "type": "string" },
+              "accounts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "authType", "enabled"],
+                  "properties": {
+                    "id":              { "type": "string" },
+                    "authType":        { "type": "string", "enum": ["oauth_zai", "oauth_codex", "oauth_claude_cli", "api_key"] },
+                    "openclawProfile": { "type": "string" },
+                    "envKey":          { "type": "string" },
+                    "codexHome":       { "type": "string" },
+                    "claudeHome":      { "type": "string" },
+                    "plan":            { "type": "string" },
+                    "weight":          { "type": "integer", "minimum": 0 },
+                    "enabled":         { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fanOutExample": { "type": "object" }
+      }
+    },
+
+    "fallbackChains": { "type": "object" }
+  }
+}
