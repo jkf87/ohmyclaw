@@ -29,10 +29,14 @@ jobs:
         run: |
           brew install bats-core jq shellcheck
 
-      - name: Set up Node (for ajv-cli)
+      - name: Set up Node (for ajv-cli + acpx)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Install acpx (ACP boundary client)
+        run: npm install -g @openclaw/acpx
+        continue-on-error: true
 
       - name: bash -n on all .sh
         run: make syntax

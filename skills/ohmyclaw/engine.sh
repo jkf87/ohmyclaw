@@ -190,11 +190,11 @@ cmd_doctor() {
     echo "✗ routing.json engine block missing/invalid"; rc=1
   fi
 
-  # 2) acpx (ACP 경계 — 필수)
+  # 2) acpx (ACP 경계 — 권장, 부재 시 직접 CLI 폴백)
   if have acpx; then
     echo "✓ acpx ($(acpx --version 2>/dev/null | head -1))"
   else
-    echo "✗ acpx 미설치 — ACP 경계 불가. 'npm i -g @openclaw/acpx' (직접 CLI fallback 만 가능)"; rc=1
+    echo "⚠ acpx 미설치 — 'npm i -g @openclaw/acpx' 권장. 부재 시 직접 CLI 폴백 동작."
   fi
 
   # 3) omp (1순위 엔진 — 부재 시 폴백 가능하므로 warn)
@@ -209,16 +209,22 @@ cmd_doctor() {
     have "$b" && echo "✓ $b ($(command -v $b))" || echo "ℹ $b 미설치 (acpx 내장 어댑터로 대체 가능)"
   done
 
-  # 5) resolve smoke test
+  # 5) resolve smoke test — 적어도 하나의 엔진이 가용할 때만 실제 검증
   echo "--- resolve smoke ---"
-  local out
-  for m in glm-5.1 gpt-5.4; do
-    if out=$(cmd_resolve "$m" "" reviewer 2>&1); then
-      echo "✓ resolve $m → ${out%%|*}"
-    else
-      echo "✗ resolve $m 실패: $out"; rc=1
-    fi
-  done
+  local any_engine=false
+  if have omp || have acpx || have pi || have codex || have claude; then any_engine=true; fi
+  if ! $any_engine; then
+    echo "ℹ 엔진 0개 가용 — smoke 건너뜀 (CI/fresh 환경에서는 정상. 'engine.sh acp-config' 설치 가이드 참조)"
+  else
+    local out
+    for m in glm-5.1 gpt-5.4; do
+      if out=$(cmd_resolve "$m" "" reviewer 2>&1); then
+        echo "✓ resolve $m → ${out%%|*}"
+      else
+        echo "✗ resolve $m 실패: $out"; rc=1
+      fi
+    done
+  fi
 
   # 6) acp-config 유효성
   if cmd_acp_config | jq empty >/dev/null 2>&1; then
