@@ -34,7 +34,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install acpx (ACP boundary CLI — package name: 'acpx', not '@openclaw/acpx')
+      - name: Install acpx (ACP boundary CLI)
+        # Note: package is 'acpx' (not '@openclaw/acpx' which is a different backend)
         run: npm install -g acpx
         continue-on-error: true
 
