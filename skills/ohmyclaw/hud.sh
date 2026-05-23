@@ -32,9 +32,9 @@ OPENROUTER="${OPENROUTER_ENABLED:-false}"
 # ──────────────────────────────────────────────
 if [[ -t 1 ]]; then
   R='\033[0m' B='\033[1m' DIM='\033[2m'
-  GREEN='\033[32m' YELLOW='\033[33m' RED='\033[31m' CYAN='\033[36m' BLUE='\033[34m' MAGENTA='\033[35m'
+  GREEN='\033[32m' YELLOW='\033[33m' RED='\033[31m' CYAN='\033[36m' MAGENTA='\033[35m'
 else
-  R='' B='' DIM='' GREEN='' YELLOW='' RED='' CYAN='' BLUE='' MAGENTA=''
+  R='' B='' DIM='' GREEN='' YELLOW='' RED='' CYAN='' MAGENTA=''
 fi
 
 # ──────────────────────────────────────────────
@@ -303,9 +303,9 @@ compact() {
   local daily_tokens
   daily_tokens=$(jq -r --arg p "$PLAN" '.plans[$p].quota.dailyTokens' "$ROUTING_FILE")
 
-  read -r zai_t zai_r <<< "$(get_usage_by_provider zai)"
+  read -r zai_t _ <<< "$(get_usage_by_provider zai)"
   read -r codex_t codex_r <<< "$(get_usage_by_provider codex)"
-  read -r openrouter_t openrouter_r <<< "$(get_usage_by_provider openrouter)"
+  read -r openrouter_t _ <<< "$(get_usage_by_provider openrouter)"
   read -r total_t total_r <<< "$(get_usage)"
 
   local pct=0
