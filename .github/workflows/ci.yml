@@ -40,6 +40,12 @@ jobs:
         run: npm install -g acpx
         continue-on-error: true
 
+      - name: Install project deps (MCP SDK + zod + tsc)
+        run: npm install --no-audit --no-fund
+
+      - name: Build MCP server (tsc)
+        run: npm run build:mcp
+
       - name: bash -n on all .sh
         run: make syntax
 
@@ -52,5 +58,5 @@ jobs:
       - name: engine doctor
         run: make doctor
 
-      - name: bats test suite
+      - name: bats test suite (114+ cases)
         run: make test

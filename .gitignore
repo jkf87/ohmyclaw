@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+skills/ohmyclaw/dist/
+state/account-pool-state.json
+*.log
+.omc/state/

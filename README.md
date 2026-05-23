@@ -433,6 +433,37 @@ OpenClaw 에이전트에게 이렇게 요청하면 됩니다:
 
 ---
 
+## 범용 하네스 (v1.2.0+) — 자체 Runtime
+
+v1.2.0 부터 ohmyclaw 는 OpenClaw 스킬로 살되 **OMC/Ouroboros/OMX 수준의 자체 runtime** 을 보유한다(자체 state·hooks·MCP·lifecycle). OpenClaw 호스팅 없이도 단독 동작 가능.
+
+```bash
+# 단독 실행 (cli.sh)
+skills/ohmyclaw/cli.sh doctor                           # 엔진+state+hooks 점검
+skills/ohmyclaw/cli.sh route "GraphQL 마이그레이션" coding_arch --plan=pro
+skills/ohmyclaw/cli.sh state write my-key '{"x":1}'     # 세션 격리 state
+skills/ohmyclaw/cli.sh cancel --force                   # 전체 청소
+
+# MCP 서버 (Claude Code / OpenClaw 등록용)
+npm install && npm run build:mcp
+# → skills/ohmyclaw/dist/mcp-server.js (도구 5종 노출)
+```
+
+### 다른 하네스와 비교
+
+| 능력 | [Ouroboros](https://github.com/Q00/ouroboros) | [OMC](https://github.com/Yeachan-Heo/oh-my-claudecode) | [OMX](https://github.com/Yeachan-Heo/oh-my-codex) | **ohmyclaw 1.2.0** |
+|------|------|------|------|------|
+| 자체 state (세션 격리) | ✅ event sourcing | ✅ MCP state | ✅ `.omx/` | ✅ state.sh |
+| 사용자 hooks | △ plugins | ✅ | △ | ✅ hooks.sh |
+| MCP 서버 (stdio) | ✅ `[mcp]` 변종 | ✅ 플러그인 | △ | ✅ mcp-server.ts |
+| 라이프사이클(skill-active) | ✅ runtime | ✅ | ✅ tmux | ✅ cli.sh + trap |
+| 멀티 엔진 (ACP) | △ LiteLLM | △ | ❌ codex-only | ✅ omp/pi/codex/claude |
+| 자동 테스트 + CI | ✅ pytest | ✅ | △ | ✅ 114 bats + GH Actions |
+| 멀티계정 라운드로빈 | ❌ | ❌ | △ | ✅ pool.sh |
+| 한국어/Z.ai 라우팅 | ❌ | ❌ | ❌ | ✅ |
+
+이전 코드 리뷰에서 지적된 "engineered software" 격차(F1-F7 + 테스트/state/hooks/MCP 부재)는 v1.2.0 로 닫혔다. 자세한 아키텍처는 [skills/ohmyclaw/docs/architecture.md](skills/ohmyclaw/docs/architecture.md), MCP 등록은 [skills/ohmyclaw/docs/mcp-integration.md](skills/ohmyclaw/docs/mcp-integration.md) 참조.
+
 ## 파일 구조
 
 ```

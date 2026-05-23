@@ -935,6 +935,67 @@ $SKILL/engine.sh doctor >/dev/null 2>&1 && echo "✓ engine.sh doctor OK" || ech
 
 ---
 
+## 🧬 자체 Runtime (v1.2.0+)
+
+ohmyclaw 는 OpenClaw 스킬 안에 살되 **OMC/Ouroboros/OMX 수준의 자체 runtime** 을 보유한다. OpenClaw 호스팅과 무관하게 본 runtime 으로 단독 동작 가능.
+
+### 구성 요소
+
+| 컴포넌트 | 역할 | 파일 |
+|---------|------|------|
+| **state.sh** | 세션 격리 state (read/write/clear/list-active/get-status) | `skills/ohmyclaw/state.sh` |
+| **hooks.sh** | pre/post 훅 디스패처 (사용자 확장 진입점) | `skills/ohmyclaw/hooks.sh` |
+| **cli.sh** | verb 통합 디스패처 + 라이프사이클(skill-active, trap, 훅 자동) | `skills/ohmyclaw/cli.sh` |
+| **mcp-server.ts** | MCP 서버 (도구 5종 노출, stdio JSON-RPC 2.0) | `skills/ohmyclaw/src/mcp-server.ts` → `dist/mcp-server.js` |
+
+### 사용
+
+```bash
+# 자체 runtime 으로 단독 실행
+skills/ohmyclaw/cli.sh doctor
+skills/ohmyclaw/cli.sh route "API 마이그레이션 설계" coding_arch --plan=pro
+skills/ohmyclaw/cli.sh state write my-key '{"x":1}'
+skills/ohmyclaw/cli.sh hooks list
+skills/ohmyclaw/cli.sh cancel --force
+
+# MCP 서버 빌드 + 등록
+npm install && npm run build:mcp
+# ~/.claude/mcp.json 에 등록 → docs/mcp-integration.md
+```
+
+### 사용자 확장 — 훅
+
+`${OHMYCLAW_HOME:-~/.ohmyclaw}/hooks/{pre,post}-<verb>.sh` 에 executable 스크립트를 두면 자동 발화. 받는 env: `OHMYCLAW_ACTION`, `OHMYCLAW_PHASE`, `OHMYCLAW_SESSION`, `OHMYCLAW_HOME`, `OHMYCLAW_ARGS_JSON`. **pre 훅이 exit ≠0 이면 verb abort (cli.sh 가 exit 7 으로 표면화)**, post 훅 실패는 경고만.
+
+### 세션 격리
+
+```bash
+# 글로벌 (기본)
+OHMYCLAW_HOME=~/.ohmyclaw skills/ohmyclaw/cli.sh state write x '{"v":1}'
+# → ~/.ohmyclaw/state/x.json
+
+# 세션 격리
+OHMYCLAW_SESSION_ID=alpha skills/ohmyclaw/cli.sh state write x '{"v":1}'
+# → ~/.ohmyclaw/state/sessions/alpha/x.json
+```
+
+### 다른 하네스와의 비교 (v1.2.0 이후)
+
+| 능력 | Ouroboros | OMC | OMX | **ohmyclaw 1.2.0** |
+|------|-----------|-----|-----|-----|
+| 자체 state (세션 격리) | ✅ event sourcing | ✅ MCP state | ✅ `.omx/` | ✅ state.sh |
+| 사용자 hooks | △ plugins | ✅ hooks | △ | ✅ hooks.sh |
+| MCP 서버 | ✅ `[mcp]` 변종 | ✅ 플러그인 | △ | ✅ mcp-server.ts |
+| 라이프사이클 (skill-active) | ✅ runtime | ✅ skill-active | ✅ tmux | ✅ cli.sh + trap |
+| 멀티 엔진 ACP | △ LiteLLM | △ | ❌ codex-only | ✅ omp/pi/codex/claude |
+| 자동 테스트 / CI | ✅ pytest | ✅ | △ | ✅ 114 bats + CI |
+| 멀티계정 라운드로빈 | ❌ | ❌ | △ | ✅ pool.sh |
+| 한국어/Z.ai 라우팅 | ❌ | ❌ | ❌ | ✅ |
+
+기존 코드 리뷰에서 지적된 ohmyclaw 의 "engineered software" 격차는 v1.2.0 로 대부분 닫혔다. 자세한 매핑은 [docs/architecture.md](docs/architecture.md) 참조.
+
+---
+
 ## 13. Reference
 
 ### 13-1. 모델 카탈로그

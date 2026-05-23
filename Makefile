@@ -6,18 +6,20 @@ BATS  ?= bats
 JQ    ?= jq
 AJV   ?= npx -y ajv-cli@5
 
-.PHONY: help test lint schema doctor syntax ci clean
+.PHONY: help test lint schema doctor syntax build build-mcp ci clean
 
 help:
-	@echo "ohmyclaw — robustness gates"
+	@echo "ohmyclaw — robustness gates (v1.2.0)"
 	@echo ""
-	@echo "  make test     bats 슈트 (58+ 케이스)"
-	@echo "  make lint     bash -n + (가능 시) shellcheck"
-	@echo "  make schema   routing.json + sample bridge event 를 ajv 로 검증"
-	@echo "  make doctor   engine.sh doctor"
-	@echo "  make syntax   모든 .sh 의 bash -n"
-	@echo "  make ci       lint + schema + syntax + test (CI 와 동일)"
-	@echo "  make clean    tmp 격리 state 청소"
+	@echo "  make test       bats 슈트 (114+ 케이스: state + hooks + cli + mcp + engine + pool + select-model)"
+	@echo "  make lint       bash -n + (가능 시) shellcheck"
+	@echo "  make schema     routing.json + sample bridge event 를 ajv 로 검증"
+	@echo "  make doctor     engine.sh doctor"
+	@echo "  make syntax     모든 .sh 의 bash -n"
+	@echo "  make build-mcp  TypeScript MCP 서버 빌드 → skills/ohmyclaw/dist/"
+	@echo "  make build      build-mcp 와 동일 (alias)"
+	@echo "  make ci         lint + schema + doctor + build-mcp + test (CI 와 동일)"
+	@echo "  make clean      tmp 격리 state + dist 청소"
 
 syntax:
 	@echo "→ bash -n"
@@ -56,10 +58,22 @@ test:
 	fi
 	@$(BATS) tests/
 
-ci: lint schema doctor test
+build-mcp:
+	@if [ ! -d node_modules ]; then \
+	  echo "→ npm install (first time)"; \
+	  npm install --silent --no-audit --no-fund; \
+	fi
+	@echo "→ tsc (mcp-server)"
+	@npx tsc -p tsconfig.json
+	@test -f skills/ohmyclaw/dist/mcp-server.js && echo "  ✓ skills/ohmyclaw/dist/mcp-server.js"
+
+build: build-mcp
+
+ci: lint schema doctor build-mcp test
 	@echo ""
 	@echo "✅ all gates passed"
 
 clean:
-	@rm -rf /tmp/ohmyclaw-bats.* /tmp/ohmyclaw-bin.* 2>/dev/null || true
+	@rm -rf /tmp/ohmyclaw-bats.* /tmp/ohmyclaw-bin.* /tmp/omc-*.* 2>/dev/null || true
+	@rm -rf skills/ohmyclaw/dist 2>/dev/null || true
 	@echo "cleaned"

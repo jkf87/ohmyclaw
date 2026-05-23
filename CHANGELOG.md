@@ -2,6 +2,67 @@
 
 본 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식과 [SemVer](https://semver.org/) 를 따릅니다.
 
+## [1.2.0] — 2026-05-23
+
+### Added — 범용 하네스 격상 (자체 Runtime, 8 user stories)
+
+- **US-001 state.sh** — 자체 세션 격리 state helper (OMC `state_*` 인터페이스 모방).
+  - 액션: `read/write/clear/list-active/get-status/path/reset`.
+  - 경로: `${OHMYCLAW_HOME:-~/.ohmyclaw}/state/sessions/<id>/<key>.json` (글로벌 fallback 지원).
+  - `flock` + atomic `mv` 동시성 안전 (macOS portable mkdir-lock 폴백).
+  - 21 bats 케이스 PASS (격리/잠금/CRUD/`reset --all`/잘못된 key 거부/10 병렬 race).
+
+- **US-002 hooks.sh** — pre/post 훅 디스패처.
+  - `${OHMYCLAW_HOME}/hooks/{pre,post}-<verb>.sh` 자동 발화.
+  - 훅에 env export: `OHMYCLAW_ACTION/PHASE/SESSION/HOME/ARGS/ARGS_JSON`.
+  - 정책: pre 실패 → exit 7 (action abort), post 실패 → 경고만 (비차단).
+  - 11 bats 케이스 PASS.
+
+- **US-003 cli.sh** — verb 통합 디스패처 + skill-active 라이프사이클.
+  - verb: `doctor/route/pool/engine/state/hooks/cancel/version/help`.
+  - 각 verb 진입 시 pre 훅 + skill-active state 작성, 종료 시(trap EXIT/INT/TERM) post 훅 + cleanup.
+  - 18 bats 케이스 PASS (각 verb proxy + lifecycle + pre exit 7 abort).
+  - 버그픽스: `[[ ]] && return` 후 `$?` 캡쳐 오류 → trap 첫 줄로 이동.
+
+- **US-004 mcp-server.ts** — MCP 서버 (Node 22 / TypeScript / `@modelcontextprotocol/sdk` 1.29).
+  - 아키텍처: `McpServer` + `registerTool` 신 API + zod 스키마.
+  - 도구 5종: `ohmyclaw_route / ohmyclaw_pool_status / ohmyclaw_engine_resolve / ohmyclaw_doctor / ohmyclaw_version`.
+  - `tsc --noEmit` strict 통과, `dist/mcp-server.js` 산출 (7565B).
+  - 6 mcp.bats 케이스 PASS (initialize 핸드셰이크, tools/list 5개, 2종 tools/call, isError, schema 검증).
+
+- **US-005 cancel** — orphan cleanup + 우로보로스 정합.
+  - `cli.sh cancel [--force]` 으로 노출. skill-active 청소 + pool sweep (dead PID 슬롯) + 세션 state reset + cancel-signal 발신.
+  - `--force` 시 전체 세션 일괄.
+  - 4 cli.bats 케이스 PASS (skill-active 청소 / cancel-signal / dead PID sweep / `--force` 전체 청소).
+
+- **US-006 통합 테스트** — bats 114 케이스 PASS, 기존 58 회귀 무손상.
+  - state.bats(21) + hooks.bats(11) + cli.bats(18) + mcp.bats(6) + engine.bats(20) + pool.bats(17) + select-model.bats(21) = **114** (목표 96+ 초과).
+  - 모든 .sh shellcheck `-S warning` clean.
+  - `make ci` ✅ all gates passed.
+
+- **US-007 문서** — 아키텍처 + MCP 통합 + 비교표.
+  - `skills/ohmyclaw/docs/architecture.md` (신규): 레이어 다이어그램, 소유권 분할, 라이프사이클, 우로보로스 보존.
+  - `skills/ohmyclaw/docs/mcp-integration.md` (신규): Claude Code / OpenClaw / Codex MCP 등록 가이드, 도구 매핑, 환경변수, 트러블슈팅.
+  - `SKILL.md` 신규 §"자체 Runtime" 섹션 + 다른 하네스 비교표.
+  - `README.md` "범용 하네스" 섹션 + Ouroboros/OMC/OMX 비교표.
+
+- **US-008 semver + CI 통합** — v1.2.0 출시.
+  - `VERSION` 1.1.0 → 1.2.0; `routing.json#version` 1.2.0.
+  - `package.json` + `tsconfig.json` 추가 — `@modelcontextprotocol/sdk` + zod 의존성, `npm run build:mcp / build:mcp:check / mcp` 스크립트.
+  - `Makefile` `build-mcp` 타깃 추가, `ci` 타깃이 MCP 빌드 포함.
+  - `.github/workflows/ci.yml`: Node 셋업 후 `npm install` + `npm run build:mcp`, 그 뒤 114 bats 슈트.
+
+### Changed
+
+- `SKILL.md` 슬래시 명령은 `cli.sh <verb>` 와 1:1 매핑됨을 명시.
+- `README.md` 의 출처 섹션에 `oh-my-pi` / `acpx` / `Ouroboros` 정정 라인 유지.
+
+### 제약 — 우로보로스 프롬프트 불변
+
+`prompts/reviewer.md` 의 Stage 5 갭 5유형 + `GAP_DETECTED → fix 1회 → ESCALATED` 흐름은 변경 없음. `cancel-signal-state.json` 발신만 추가 통합.
+
+[1.2.0]: https://github.com/jkf87/ohmyclaw/compare/v1.1.0...v1.2.0
+
 ## [1.1.0] — 2026-05-23
 
 ### Added — 로버스트성 (P1–P7)
