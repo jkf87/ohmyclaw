@@ -32,10 +32,10 @@ jobs:
       - name: Set up Node (for ajv-cli + acpx)
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install acpx (ACP boundary client)
-        run: npm install -g @openclaw/acpx
+      - name: Install acpx (ACP boundary CLI — package name: 'acpx', not '@openclaw/acpx')
+        run: npm install -g acpx
         continue-on-error: true
 
       - name: bash -n on all .sh

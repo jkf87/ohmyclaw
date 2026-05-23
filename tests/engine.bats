@@ -6,6 +6,9 @@ load helpers
 setup() {
   setup_isolated_state
   unset OHMYCLAW_ENGINE OHMYCLAW_ENGINE_FALLBACK
+  # 기본 mock: acpx 가 PATH 에 있도록 (CI/fresh 환경에서도 결정론적 테스트)
+  # 개별 테스트가 omp 등을 추가 mock 하면 자동 확장됨
+  mock_bin acpx
 }
 teardown() {
   unmock_bin
