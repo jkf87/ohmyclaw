@@ -16,7 +16,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install bats + jq (ubuntu)
         if: runner.os == 'Linux'
@@ -26,11 +26,12 @@ jobs:
 
       - name: Install bats + jq + shellcheck (macOS)
         if: runner.os == 'macOS'
+        # --quiet + || true 로 'already installed' 메시지가 set -e 환경에서 잡음 안 내도록
         run: |
-          brew install bats-core jq shellcheck
+          brew install --quiet bats-core jq shellcheck || true
 
       - name: Set up Node (for ajv-cli + acpx)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
