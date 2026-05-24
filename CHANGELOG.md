@@ -2,7 +2,11 @@
 
 본 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식과 [SemVer](https://semver.org/) 를 따릅니다.
 
-## [1.2.0] — 2026-05-23
+> **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
+
+## [1.4.0] — 2026-05-24
+
+origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴리즈로 통합. 본 릴리즈는 잘못 라벨됐던 1.0.0/1.1.0/1.2.0 세 commit (engine ACP 이식 + robustness P1-P7 + 범용 하네스 격상) 의 합본입니다.
 
 ### Added — 범용 하네스 격상 (자체 Runtime, 8 user stories)
 
@@ -46,8 +50,8 @@
   - `SKILL.md` 신규 §"자체 Runtime" 섹션 + 다른 하네스 비교표.
   - `README.md` "범용 하네스" 섹션 + Ouroboros/OMC/OMX 비교표.
 
-- **US-008 semver + CI 통합** — v1.2.0 출시.
-  - `VERSION` 1.1.0 → 1.2.0; `routing.json#version` 1.2.0.
+- **US-008 semver + CI 통합** — v1.4.0 출시.
+  - `VERSION` 1.3.0 → 1.4.0; `routing.json#version` 1.4.0.
   - `package.json` + `tsconfig.json` 추가 — `@modelcontextprotocol/sdk` + zod 의존성, `npm run build:mcp / build:mcp:check / mcp` 스크립트.
   - `Makefile` `build-mcp` 타깃 추가, `ci` 타깃이 MCP 빌드 포함.
   - `.github/workflows/ci.yml`: Node 셋업 후 `npm install` + `npm run build:mcp`, 그 뒤 114 bats 슈트.
@@ -61,9 +65,9 @@
 
 `prompts/reviewer.md` 의 Stage 5 갭 5유형 + `GAP_DETECTED → fix 1회 → ESCALATED` 흐름은 변경 없음. `cancel-signal-state.json` 발신만 추가 통합.
 
-[1.2.0]: https://github.com/jkf87/ohmyclaw/compare/v1.1.0...v1.2.0
+[1.4.0]: https://github.com/jkf87/ohmyclaw/compare/v1.3.0...v1.4.0
 
-## [1.1.0] — 2026-05-23
+## [1.1.0] — 2026-05-23  (⚠️ 가짜 라벨 — v1.4.0 에 통합됨)
 
 ### Added — 로버스트성 (P1–P7)
 - **bats 테스트 슈트** (`tests/`, 58+ 케이스): select-model 라우팅 매트릭스·우선순위 규칙·plan cap·reasoning 인식·Codex/OpenRouter overlay 회귀 + engine.sh resolve(omp 우선/폴백, role→permission, 강제/no-fallback, acp-config, doctor) + pool.sh next/cooldown/release + worker semaphore + 동시성 race 시나리오.
@@ -83,7 +87,7 @@
 - `concurrency.maxWorkers` 가 hud 표시용일 뿐 실제 spawn 한도가 강제되지 않던 결함 (F2).
 - 비정상 종료 시 `${STATE_DIR}/pids/<session>/` 의 고아 슬롯이 누적되던 문제 — `pool.sh sweep` 으로 dead PID 회수 (F5).
 
-## [1.0.0] — 2026-05-23 (먼저, omp ACP 엔진 이식)
+## [1.0.0] — 2026-05-23  (⚠️ 가짜 라벨 — v1.4.0 에 통합됨; 첫 omp ACP 엔진 이식 작업)
 - **Engine layer (omp via ACP)**: `engine.sh` 신규 — `acpx` 의 `--agent "omp acp"` escape hatch 로 oh-my-pi(omp) 를 1순위 엔진으로 spawn, omp 미설치 시 acpx 내장 어댑터(pi/codex/claude)로 graceful fallback.
 - routing.json 최상위 `engine` 블록 + ohmyclaw=모델·계정·키 / omp=엔진툴·세부 role 소유권 분할.
 - 우로보로스 reviewer.md 는 변경 없이 omp 툴(`lsp_diagnostics`/`ast_grep_search`)을 그대로 활용.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openclaw.ai/schemas/skill-routing.json",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "comment": "Single source of truth for Z.ai Coding Plan routing. Read by select-model.sh, engine.sh, and referenced by SKILL.md.",
 
   "engine": {

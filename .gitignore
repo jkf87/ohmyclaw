@@ -4,3 +4,4 @@ skills/ohmyclaw/dist/
 state/account-pool-state.json
 *.log
 .omc/state/
+apps/

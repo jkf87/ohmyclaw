@@ -1,6 +1,6 @@
 # ohmyclaw 아키텍처 — 자체 Runtime + ACP 외부 경계
 
-> v1.2.0 부터 ohmyclaw 는 OpenClaw 스킬 안에 살되 OMC/Ouroboros/OMX 수준의 자체 runtime(state·hooks·MCP·lifecycle) 을 보유한다. 외부 호스트(Claude Code/Codex/raw acpx) 지원은 ACP 경계로 한다.
+> v1.4.0 부터 ohmyclaw 는 OpenClaw 스킬 안에 살되 OMC/Ouroboros/OMX 수준의 자체 runtime(state·hooks·MCP·lifecycle) 을 보유한다. 외부 호스트(Claude Code/Codex/raw acpx) 지원은 ACP 경계로 한다.
 
 ## 레이어 다이어그램
 

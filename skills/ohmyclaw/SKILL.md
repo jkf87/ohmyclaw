@@ -1009,7 +1009,7 @@ $SKILL/engine.sh doctor >/dev/null 2>&1 && echo "✓ engine.sh doctor OK" || ech
 
 ---
 
-## 🧬 자체 Runtime (v1.2.0+)
+## 🧬 자체 Runtime (v1.4.0+)
 
 ohmyclaw 는 OpenClaw 스킬 안에 살되 **OMC/Ouroboros/OMX 수준의 자체 runtime** 을 보유한다. OpenClaw 호스팅과 무관하게 본 runtime 으로 단독 동작 가능.
 
@@ -1053,9 +1053,9 @@ OHMYCLAW_SESSION_ID=alpha skills/ohmyclaw/cli.sh state write x '{"v":1}'
 # → ~/.ohmyclaw/state/sessions/alpha/x.json
 ```
 
-### 다른 하네스와의 비교 (v1.2.0 이후)
+### 다른 하네스와의 비교 (v1.4.0 이후)
 
-| 능력 | Ouroboros | OMC | OMX | **ohmyclaw 1.2.0** |
+| 능력 | Ouroboros | OMC | OMX | **ohmyclaw 1.4.0** |
 |------|-----------|-----|-----|-----|
 | 자체 state (세션 격리) | ✅ event sourcing | ✅ MCP state | ✅ `.omx/` | ✅ state.sh |
 | 사용자 hooks | △ plugins | ✅ hooks | △ | ✅ hooks.sh |
@@ -1066,7 +1066,7 @@ OHMYCLAW_SESSION_ID=alpha skills/ohmyclaw/cli.sh state write x '{"v":1}'
 | 멀티계정 라운드로빈 | ❌ | ❌ | △ | ✅ pool.sh |
 | 한국어/Z.ai 라우팅 | ❌ | ❌ | ❌ | ✅ |
 
-기존 코드 리뷰에서 지적된 ohmyclaw 의 "engineered software" 격차는 v1.2.0 로 대부분 닫혔다. 자세한 매핑은 [docs/architecture.md](docs/architecture.md) 참조.
+기존 코드 리뷰에서 지적된 ohmyclaw 의 "engineered software" 격차는 v1.4.0 로 대부분 닫혔다. 자세한 매핑은 [docs/architecture.md](docs/architecture.md) 참조.
 
 ---
 

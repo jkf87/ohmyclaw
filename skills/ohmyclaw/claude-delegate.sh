@@ -88,6 +88,7 @@ if [[ -z "$CONFIG_DIR" && -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
 fi
 
 # tilde 확장 (--config-dir=~/... 처럼 = 뒤의 tilde 는 shell 이 expand 안 함)
+# shellcheck disable=SC2088  # 매칭 패턴의 ~ 는 의도된 리터럴 (사용자 입력 파싱용)
 case "$CONFIG_DIR" in
   '~/'*) CONFIG_DIR="${HOME}/${CONFIG_DIR#'~/'}" ;;
   '~')   CONFIG_DIR="${HOME}" ;;

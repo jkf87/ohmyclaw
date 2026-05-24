@@ -1,6 +1,6 @@
 # ohmyclaw MCP 통합 가이드
 
-v1.2.0 부터 ohmyclaw 는 stdio JSON-RPC 2.0 MCP 서버를 제공한다. Claude Code / OpenClaw / Codex / 임의 MCP 호스트에서 ohmyclaw 도구를 1급 시민으로 호출할 수 있다.
+v1.4.0 부터 ohmyclaw 는 stdio JSON-RPC 2.0 MCP 서버를 제공한다. Claude Code / OpenClaw / Codex / 임의 MCP 호스트에서 ohmyclaw 도구를 1급 시민으로 호출할 수 있다.
 
 ## 빌드
 
