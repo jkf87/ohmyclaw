@@ -157,3 +157,46 @@ teardown() {
   run st read rt
   [ "$output" = "$val" ]
 }
+
+# ── recent action (US-007) ──────────────────────────────────────────────
+
+@test "recent with ttl=0 returns content (read-equivalent)" {
+  st write k1 '{"v":1}'
+  run st recent k1 0
+  [ "$status" -eq 0 ]
+  [ "$output" = '{"v":1}' ]
+}
+
+@test "recent within ttl returns content" {
+  st write k1 '{"v":1}'
+  run st recent k1 60
+  [ "$status" -eq 0 ]
+  [ "$output" = '{"v":1}' ]
+}
+
+@test "recent past ttl returns empty" {
+  st write k1 '{"v":1}'
+  # set mtime to 1970 (way past)
+  touch -t 197001020000 "$TMP_HOME/state/k1.json" 2>/dev/null || \
+    touch -d "1970-01-02" "$TMP_HOME/state/k1.json"
+  run st recent k1 60
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "recent missing key returns empty exit 0" {
+  run st recent nope 60
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "recent missing arg exits 2" {
+  run st recent
+  [ "$status" -eq 2 ]
+}
+
+@test "recent invalid ttl exits 2" {
+  st write k1 '{"v":1}'
+  run st recent k1 abc
+  [ "$status" -eq 2 ]
+}

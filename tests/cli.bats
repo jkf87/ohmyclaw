@@ -165,3 +165,74 @@ H
   run env OHMYCLAW_SESSION_ID=other "$SKILL_DIR/state.sh" read k
   [ -z "$output" ]
 }
+
+# ── exec verb ────────────────────────────────────────────────────────────────
+
+@test "exec: clear precise task routes directly without ask (ambiguous:false)" {
+  # "fix null check at src/foo.ts:42 — test must pass" scores low ambiguity:
+  # has file anchor (.ts), success keyword (pass), verb (fix) → gate exits 0
+  run cl exec "fix null check at src/foo.ts:42 — test must pass"
+  [ "$status" -eq 0 ]
+  # Output is JSON
+  [[ "$output" == *'"ambiguous":false'* ]]
+  [[ "$output" == *'"intent_id":"last-exec-intent"'* ]]
+  [[ "$output" == *'"model":'* ]]
+  # model must not be empty or dry-run stub
+  [[ "$output" != *'"model":""'* ]]
+  [[ "$output" != *'"model":"<dry-run>"'* ]]
+}
+
+@test "exec: vague task with MOCK_RESPONSE=2 triggers ask path with step prefix" {
+  export OHMYCLAW_ASK_MOCK=1
+  export OHMYCLAW_EXEC_MOCK_RESPONSE=2
+  run cl exec "이거 해줘" --to testchat
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"ambiguous":true'* ]]
+  [[ "$output" == *'단계 1/N'* ]]
+  [[ "$output" == *'"model":'* ]]
+  unset OHMYCLAW_ASK_MOCK OHMYCLAW_EXEC_MOCK_RESPONSE
+}
+
+@test "exec: OHMYCLAW_SKIP_AMBIGUITY=true bypasses gate, ambiguous:false in output" {
+  export OHMYCLAW_SKIP_AMBIGUITY=true
+  run cl exec "이거 해줘"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"ambiguous":false'* ]]
+  [[ "$output" == *'"model":'* ]]
+  unset OHMYCLAW_SKIP_AMBIGUITY
+}
+
+@test "exec: free-text MOCK_RESPONSE sets resolved task to that text" {
+  export OHMYCLAW_ASK_MOCK=1
+  export OHMYCLAW_EXEC_MOCK_RESPONSE="add tests for state.sh"
+  run cl exec "이거 해줘"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"ambiguous":true'* ]]
+  [[ "$output" == *'add tests for state.sh'* ]]
+  unset OHMYCLAW_ASK_MOCK OHMYCLAW_EXEC_MOCK_RESPONSE
+}
+
+@test "exec: last-exec-intent state written with correct JSON shape" {
+  # Use a clear task so gate passes, then verify state was written
+  cl exec "fix null check at src/foo.ts:42 — test must pass" >/dev/null
+  run "$SKILL_DIR/state.sh" read last-exec-intent
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"task":'* ]]
+  [[ "$output" == *'"original":'* ]]
+  [[ "$output" == *'"interpretation":'* ]]
+  [[ "$output" == *'"ts":'* ]]
+  [[ "$output" == *'"ambiguous":'* ]]
+}
+
+@test "exec: missing task argument exits 2 with usage" {
+  run cl exec
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"exec"* ]]
+}
+
+@test "exec: --dry-run skips route and emits stub JSON" {
+  run cl exec "do something" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"model":"<dry-run>"'* ]]
+  [[ "$output" == *'"_dry_run":true'* ]]
+}

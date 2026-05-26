@@ -98,7 +98,11 @@ teardown() {
   [[ "$output" =~ ^omp\| ]]
 }
 @test "OHMYCLAW_ENGINE_FALLBACK false errors when forced engine absent" {
-  OHMYCLAW_ENGINE=omp OHMYCLAW_ENGINE_FALLBACK=false run eg resolve glm-5.1 oauth_zai reviewer
+  # 호스트에 omp 가 실재할 수 있으므로 (예: ~/.bun/bin/omp) PATH 를 강제 스크럽.
+  # MOCK_BIN_DIR(acpx) + jq dir + 기본 시스템만 두고 omp 가 절대 안 보이도록.
+  local jq_dir; jq_dir=$(dirname "$(command -v jq)")
+  local clean_path="$MOCK_BIN_DIR:$jq_dir:/usr/bin:/bin"
+  PATH="$clean_path" OHMYCLAW_ENGINE=omp OHMYCLAW_ENGINE_FALLBACK=false run eg resolve glm-5.1 oauth_zai reviewer
   [ "$status" -ne 0 ]
 }
 

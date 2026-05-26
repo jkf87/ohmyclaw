@@ -144,3 +144,29 @@ When unresolved questions remain, append them to `.omx/plans/open-questions.md` 
 **알림**: 라이프사이클 이벤트는 `openclaw system event --text "[<event>|exec] ..." --mode now` 로 발신 (best-effort, 실패가 워크플로 차단 안 함).
 
 **출처**: OMX (oh-my-codex) `prompts/planner.md` 카피 + ohmyclaw 통합. MIT 라이선스.
+
+### Ambiguity output contract (plan-gate)
+
+When the planner detects multiple viable interpretations of the task, it MUST emit a structured
+JSON block (not just prose) on a **single line of stdout**, of shape:
+
+```json
+{"ask_required":true,"question":"<short>","options":[{"label":"...","value":"interpA"},{"label":"...","value":"interpB"}],"recommended":"interpA"}
+```
+
+Rules:
+- `ask_required` MUST be the boolean `true` (not a string).
+- `question` is a short, human-readable prompt shown to the user via Telegram inline keyboard.
+- `options` MUST contain **at least 2** entries. Each entry has a `label` (display text) and a
+  `value` (machine-readable callback identifier passed back as the user's selection).
+- `recommended` is the `value` of the option the planner recommends as the default on timeout.
+- The entire JSON object MUST appear on a **single line** of stdout so that `cli.sh plan-gate`
+  can detect it reliably via line-by-line parsing.
+
+Otherwise (single clear interpretation), the planner emits its normal plan in YAML/markdown as
+before. **Backward compat**: presence of an `ask_required` field anywhere in the line is the
+trigger; absence means "no ambiguity, proceed".
+
+`cli.sh plan-gate` reads this stdout, calls `cli.sh ask` when `ask_required:true`, and emits:
+- `{"ask_fired":true,"response":"<chosen_value>","next":"architect"}` — when ask was dispatched.
+- `{"ask_fired":false,"next":"architect"}` — when the planner output had no ambiguity signal.

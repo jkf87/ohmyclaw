@@ -4,6 +4,36 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.5.0] — 2026-05-26
+
+### Added — Interactive Ask Flow (4 anchors, 우로보로스 정합)
+
+origin v1.4.0 이후 누적된 사용자 질문 발동 메커니즘. 사용자가 1/2/3 + Other 텔레그램 인라인 키보드 버튼으로 결정 지점에서 답할 수 있게 한다. 결과적으로 Hermes/Ouroboros 스타일 "ambiguity gate" 와 정합.
+
+- **US-001 bridge-event 스키마 v1.1.0** — `payload.options[{label,value}]`, `payload.allowOther`, `payload.timeoutSec`, `payload.recommended` 필드 추가. `ask-user-question` 타입에 대해 `options.length≥2` 조건부 강제. 기존 페이로드(summary only) 후방호환.
+- **US-002 cli.sh `ask` verb** — Telegram inline keyboard 발화 + 응답 폴링. `--to/--question/--option N:label/--other/--timeout/--recommended/--save-as/--dry-run` 옵션. `OHMYCLAW_ASK_MOCK=1` + `OHMYCLAW_ASK_MOCK_RESPONSE` 테스트 모드. callback_data 응답 + `__other__` free-text 분기 + timeout fallback. 18 ask.bats(US-002) → 23(+US-007).
+- **US-003 ambiguity.sh** — Ouroboros 4차원 가중 Ambiguity Score (`goal 0.35 + constraint 0.25 + success 0.25 + context 0.15`). `score` 액션은 JSON 출력, `gate` 액션은 score>0.2 시 exit 11. 휴리스틱 측정(LLM 호출 없음): 글자수/anchor/제약 키워드/DoD 키워드. 18 ambiguity.bats PASS.
+- **US-004 cli.sh `exec` verb (Anchor 3)** — task 진입 시 ambiguity gate. score>0.2 시 자동 ask 발동(3 generic 해석 옵션 + Other). `OHMYCLAW_SKIP_AMBIGUITY=true` 옵트아웃. 응답 → `state.sh write last-exec-intent`. 7 cli.bats 추가.
+- **US-005 cli.sh `plan-gate` verb (Anchor 1)** — `prompts/planner.md` 출력 계약 확장: planner LLM 이 다중해석 시 `ask_required:true + options[]` JSON 출력. plan-gate 가 stdin JSON 파싱 → ask 자동 발동 → `{"ask_fired":bool, ...}` 응답. 13 plan-gate.bats PASS.
+- **US-006 cli.sh `gap-gate` verb (Anchor 2)** — reviewer.md `GAP_DETECTED` verdict JSON 을 stdin 으로 받아 3가지 옵션 ask 발동(apply-fix / ignore-gap / Other). 응답에 따라 `action: fix-loop|force-approve|escalated` 매핑. SKILL.md §7-6-1 orchestrator 가이드 추가. **prompts/reviewer.md 본문 UNCHANGED — 우로보로스 불변 제약 준수**. 10 gap-gate.bats PASS.
+- **US-007 state.sh `recent` action + ask `--save-as` + cli prefetch** — TTL 기반 stale 무시 (mtime ≤ ttl 이내만 출력). ask 가 응답을 자동으로 state 에 저장(기본 `last-ask-answer`, `--save-as <key>` 커스텀). `_run_verb` 가 모든 verb 진입 시 `OHMYCLAW_LAST_ANSWER` env export (TTL 3600s). 후속 verb / 사용자 hook 이 prefetch 활용. 6 state.bats + 5 ask.bats 추가.
+- **US-008 통합 테스트** — bats 198 PASS (목표 145+ 큰 폭 초과). 기존 v1.4.0 121 케이스 회귀 0건. shellcheck `-S warning` clean. `make ci` ✅ all gates. 슈트별: state(27) + ambiguity(18) + ask(23) + cli(25) + e2e(7) + engine(20) + gap-gate(10) + hooks(11) + mcp(6) + plan-gate(13) + pool(17) + select-model(21) = 198.
+
+### Changed
+
+- `prompts/planner.md` — "Ambiguity output contract" 섹션 추가 (LLM 출력 약속). 본문 흐름 무변경.
+- `SKILL.md` — 신규 §7-6-1 (gap-gate orchestrator) + 별도 §Interactive Ask Flow 섹션.
+
+### Fixed
+
+- **engine.bats fragility** — `OHMYCLAW_ENGINE_FALLBACK=false errors when forced engine absent` 케이스가 호스트에 omp(`~/.bun/bin/omp`)가 실재할 때 비결정적. PATH 스크럽으로 deterministic 화. CI 는 영향 없었으나 로컬 개발자 환경에서 회귀.
+
+### Constraint — 우로보로스 불변 검증
+
+`prompts/reviewer.md` 본문은 본 릴리즈에서 한 글자도 변경되지 않음. GAP_DETECTED → ask 매핑은 *오케스트레이터 레벨*(SKILL.md §7-6-1)에서만 동작. Stage 5 갭 5유형 + fix1 → ESCALATED 흐름 100% 보존.
+
+[1.5.0]: https://github.com/jkf87/ohmyclaw/compare/v1.4.0...v1.5.0
+
 ## [1.4.0] — 2026-05-24
 
 origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴리즈로 통합. 본 릴리즈는 잘못 라벨됐던 1.0.0/1.1.0/1.2.0 세 commit (engine ACP 이식 + robustness P1-P7 + 범용 하네스 격상) 의 합본입니다.

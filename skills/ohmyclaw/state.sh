@@ -202,6 +202,40 @@ action_get_status() {
 }
 
 # ──────────────────────────────────────────────
+# 액션 — recent (TTL 기반 prefetch)
+# state.sh recent <key> [ttl-sec]
+#   ttl=0 (기본) → 그냥 read 와 동일
+#   ttl>0       → 현재 시각 - mtime 이 ttl 이내면 내용 출력, 초과면 빈 출력
+#   파일 부재   → 빈 출력
+# 반환: 항상 exit 0 (정책: caller 가 빈 출력 으로 부재 판단)
+# ──────────────────────────────────────────────
+action_recent() {
+  local key="${1:-}"
+  local ttl="${2:-0}"
+  _validate_key "$key" || return 2
+  if ! [[ "$ttl" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: ttl-sec must be a non-negative integer (got: $ttl)" >&2
+    return 2
+  fi
+  local p; p="$(_key_path "$key")"
+  [[ ! -f "$p" ]] && return 0
+  if [[ "$ttl" -eq 0 ]]; then
+    cat "$p"
+    return 0
+  fi
+  # mtime 추출 (macOS 와 Linux 둘 다 지원)
+  local mtime now age
+  mtime=$(stat -f '%m' "$p" 2>/dev/null || stat -c '%Y' "$p" 2>/dev/null)
+  now=$(date +%s)
+  age=$(( now - mtime ))
+  if [[ "$age" -le "$ttl" ]]; then
+    cat "$p"
+  fi
+  # else: 빈 출력
+  return 0
+}
+
+# ──────────────────────────────────────────────
 # 액션 — reset
 # ──────────────────────────────────────────────
 _reset_inner() {
@@ -224,6 +258,7 @@ action_reset() {
 case "${1:-}" in
   write)        shift; action_write "$@" ;;
   read)         shift; action_read "$@" ;;
+  recent)       shift; action_recent "$@" ;;
   clear)        shift; action_clear "$@" ;;
   path)         shift; action_path "$@" ;;
   list-active)  shift; action_list_active "$@" ;;
@@ -237,6 +272,7 @@ state.sh — ohmyclaw 세션 격리 state (OMC state_* 인터페이스 모방)
   write <key> --file <path>    파일에서 쓰기
   write <key> --stdin          stdin 에서 쓰기
   read  <key>                  값 출력 (없으면 빈 출력)
+  recent <key> [ttl-sec]       TTL 기반 prefetch (mtime ≤ ttl 시만 출력)
   clear <key>                  키 제거
   list-active                  활성 세션 ID 목록
   get-status [sessionId]       세션 key + mtime 표

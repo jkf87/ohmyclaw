@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openclaw.ai/schemas/ohmyclaw-bridge-event.json",
-  "title": "ohmyclaw bridge event",
+  "title": "ohmyclaw bridge event (version: 1.1.0)",
   "description": "OMX 호환 ohmyclaw 브릿지 이벤트의 구조화 페이로드. SKILL.md §9 의 free-form 텍스트를 대체한다.",
   "type": "object",
   "required": ["version", "type", "session", "ts", "payload"],
@@ -62,7 +62,55 @@
         "engine":         { "type": "string", "enum": ["omp", "pi", "codex", "claude"] },
         "agent":          { "type": "string" },
         "durationMs":     { "type": "integer", "minimum": 0 },
-        "errorClass":     { "type": "string" }
+        "errorClass":     { "type": "string" },
+        "options": {
+          "type": "array",
+          "description": "ask-user-question 응답 선택지 목록. 제시 시 2개 이상 필요.",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "value": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "allowOther": {
+          "type": "boolean",
+          "description": "options 외 자유 입력 허용 여부. 생략 시 true 로 간주."
+        },
+        "timeoutSec": {
+          "type": "integer",
+          "description": "사용자 응답 대기 제한 시간(초). 5~600 범위.",
+          "minimum": 5,
+          "maximum": 600
+        }
+      }
+    }
+  },
+  "if": {
+    "type": "object",
+    "properties": {
+      "type": { "const": "ask-user-question" }
+    },
+    "required": ["type"]
+  },
+  "then": {
+    "type": "object",
+    "properties": {
+      "payload": {
+        "type": "object",
+        "if": {
+          "type": "object",
+          "required": ["options"]
+        },
+        "then": {
+          "type": "object",
+          "properties": {
+            "options": { "type": "array", "minItems": 2 }
+          }
+        }
       }
     }
   }

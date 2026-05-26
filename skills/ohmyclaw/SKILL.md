@@ -736,6 +736,60 @@ openclaw system event \
 
 > **우로보로스는 엔진 무관 (omp 이식 후에도 불변)**: `prompts/reviewer.md` 는 이미 omp 엔진 툴 `lsp_diagnostics` / `ast_grep_search` 를 호출하도록 작성돼 있습니다. 엔진을 omp 로 바꾸면 이 툴들이 실제로 채워져 5관점 리뷰가 더 정확해집니다. reviewer 는 read-only role 이므로 engine.sh 가 `--approve-reads` 권한으로 spawn 합니다(쓰기 차단 = omp `session/request_permission` 정합). 갭 5유형(assumption_injection/scope_creep/direction_drift/missing_core/over_engineering)과 `GAP_DETECTED→fix 1회→재리뷰→ESCALATED` 제어흐름은 프롬프트/오케스트레이션 계약이므로 엔진 교체와 무관하게 **그대로 유지**됩니다.
 
+#### 7-6-1. GAP_DETECTED 자동 게이트 (v1.5.0+)
+
+오케스트레이터(이 SKILL.md 를 따르는 LLM 에이전트)는 reviewer 가 `GAP_DETECTED` verdict 를 JSON 으로 출력하면 그 JSON 을 **즉시 `cli.sh gap-gate`** 로 파이프해야 한다.
+
+```bash
+# reviewer 출력 예시:
+# {"verdict":"GAP_DETECTED","gapType":"scope_creep","gapReason":"알림 시스템 자의 추가",
+#  "fixDirection":"알림 제거하고 CRUD 만 유지","fixIteration":0}
+
+REVIEWER_JSON=$(bash workdir:"$PROJECT" command:"$RCMD")
+
+echo "$REVIEWER_JSON" \
+  | skills/ohmyclaw/cli.sh gap-gate --to "$CHAT_ID" --timeout 120
+```
+
+`gap-gate` 는 사용자에게 3가지 선택지를 Telegram 인라인 버튼으로 제시한 후 응답을 `action` JSON 으로 변환한다. 오케스트레이터는 `action` 에 따라 다음 단계를 결정한다:
+
+| `action` | 오케스트레이터 다음 단계 |
+|----------|------------------------|
+| `fix-loop` | executor 재호출. 요청 prompt 에 `direction` 필드(수정 방향)를 포함시킨다. fix loop 는 최대 **1회** (`fixIteration` < 1). 재실행 후 반드시 reviewer 를 다시 호출해 재리뷰한다. |
+| `force-approve` | `GAP_DETECTED` verdict 를 `APPROVE` 로 처리하고 다음 파이프라인 단계(session-end 등)로 진행한다. |
+| `escalated` | 기존 ESCALATED 흐름과 동일. `userInput` 에 담긴 사용자 자유 답변을 그대로 다음 실행 지시로 사용하거나 보고 후 대기한다. |
+
+```bash
+# gap-gate 응답 처리 예시
+GAP_RESULT=$(echo "$REVIEWER_JSON" | skills/ohmyclaw/cli.sh gap-gate --to "$CHAT_ID")
+ACTION=$(echo "$GAP_RESULT" | jq -r '.action')
+
+case "$ACTION" in
+  fix-loop)
+    DIRECTION=$(echo "$GAP_RESULT" | jq -r '.direction')
+    FIX_ITER=$(echo "$GAP_RESULT"  | jq -r '.fixIteration')
+    # executor 재호출 (수정 방향 포함, fixIteration 확인 후 1회만)
+    if [[ "$FIX_ITER" -le 1 ]]; then
+      bash workdir:"$PROJECT" command:"$EXEC_CMD -- fix: $DIRECTION"
+      # 재리뷰 (reviewer 재호출)
+    else
+      # fix loop 한도 초과 → ESCALATED
+      openclaw system event --text "[ESCALATED] fix loop 한도 초과" --mode now
+    fi
+    ;;
+  force-approve)
+    # APPROVE 처리 → session-end
+    openclaw system event --text "[session-end] user override: gap approved" --mode now
+    ;;
+  escalated)
+    USER_INPUT=$(echo "$GAP_RESULT" | jq -r '.userInput')
+    openclaw system event --text "[ESCALATED] $USER_INPUT" --mode now
+    ;;
+esac
+```
+
+> **중요**: `prompts/reviewer.md` 본문은 **변경되지 않으며**, 본 게이트는 *오케스트레이터 레벨* 에서만 동작한다. reviewer 는 여전히 동일한 5관점 + 갭 감지 verdict 를 출력할 뿐이고, `cli.sh gap-gate` 가 그 verdict 를 가로채어 사용자 결정을 중재한다. 우로보로스(`prompts/reviewer.md`) 본문 불변 원칙은 v1.5.0 에서도 유지된다.
+
 ---
 
 ## 8. Provenance (OMC + OMX 어디서 왔나)
@@ -1067,6 +1121,35 @@ OHMYCLAW_SESSION_ID=alpha skills/ohmyclaw/cli.sh state write x '{"v":1}'
 | 한국어/Z.ai 라우팅 | ❌ | ❌ | ❌ | ✅ |
 
 기존 코드 리뷰에서 지적된 ohmyclaw 의 "engineered software" 격차는 v1.4.0 로 대부분 닫혔다. 자세한 매핑은 [docs/architecture.md](docs/architecture.md) 참조.
+
+## 💬 Interactive Ask Flow (v1.5.0+)
+
+사용자에게 **1/2/3 + Other 텔레그램 인라인 키보드 질문**을 발동할 수 있다. 4 앵커 중 1-3 자동 트리거, prompts/reviewer.md 본문 보존.
+
+### Verb 요약
+
+| Verb | 역할 | 트리거 |
+|------|------|--------|
+| `cli.sh ask` | 직접 ask (구조화 선택지) | 명시 호출 |
+| `cli.sh exec <task>` | Anchor 3: ambiguity gate + 자동 ask | task 진입 시 score>0.2 |
+| `cli.sh plan-gate` | Anchor 1: planner 출력 파싱 → ask | stdin JSON `ask_required:true` |
+| `cli.sh gap-gate` | Anchor 2: GAP_DETECTED → ask | stdin JSON `verdict:GAP_DETECTED` |
+
+### Ambiguity Score (휴리스틱, 4차원)
+
+`Ambiguity = 1 - Σ(clarity × weight)`. weights: goal 0.35 / constraint 0.25 / success 0.25 / context 0.15. 기본 게이트 0.2.
+
+### State 통합
+
+- ask 응답 자동 저장: `state.sh write last-ask-answer` (또는 `--save-as <key>`)
+- 후속 verb prefetch: `_run_verb` 가 `OHMYCLAW_LAST_ANSWER` env 자동 export (TTL 3600s)
+
+### 우로보로스 정합
+
+- `prompts/reviewer.md` 본문 **불변** — Stage 5 갭 5유형 + fix 1회 → ESCALATED 흐름 100% 보존
+- gap-gate 는 오케스트레이터 레벨(§7-6-1)에서만 동작 — reviewer 출력 JSON 을 stdin 으로 받아 사용자 결정 매핑
+
+자세한 다이어그램·공식·사용 예시: [docs/ask-flow.md](docs/ask-flow.md)
 
 ---
 
