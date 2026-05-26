@@ -223,9 +223,14 @@ action_recent() {
     cat "$p"
     return 0
   fi
-  # mtime 추출 (macOS 와 Linux 둘 다 지원)
+  # mtime 추출 — GNU(Linux) stat 우선 시도(`-c '%Y'`), 실패 시 BSD(macOS)(`-f '%m'`).
+  # BSD-uname Darwin 만 -f 사용. Linux 에서 -f 는 filesystem 정보를 잘못 반환하므로 분기 필수.
   local mtime now age
-  mtime=$(stat -f '%m' "$p" 2>/dev/null || stat -c '%Y' "$p" 2>/dev/null)
+  if [[ "$(uname)" == "Darwin" ]]; then
+    mtime=$(stat -f '%m' "$p" 2>/dev/null)
+  else
+    mtime=$(stat -c '%Y' "$p" 2>/dev/null)
+  fi
   now=$(date +%s)
   age=$(( now - mtime ))
   if [[ "$age" -le "$ttl" ]]; then
