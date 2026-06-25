@@ -4,6 +4,28 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.6.0] — 2026-06-26
+
+### Added — Socratic Interview + Telegram 슬래시 명령어 (우로보로스 정합)
+
+Q00/ouroboros 의 Socratic 인터뷰("질문은 모호성 ≤ 0.2 까지")를 ohmyclaw 4차원 명확성 위에 이식하고, 텔레그램 슬래시 명령어를 버튼으로 노출한다. 모든 버튼은 **실제 openclaw 2026.6.6 `MessagePresentation` API** 로 발화한다.
+
+- **US-101 cli.sh `interview` verb** — 4차원(goal/constraint/success/context) Socratic 인터뷰. 각 질문을 인라인 버튼으로 발화(`cmd_ask` 재사용), 응답을 crystallize 절로 누적 → `ambiguity.sh` 재채점 → score ≤ threshold(기본 0.2) 도달 시 **조기 종료**. 이미 명확한 차원은 건너뜀. 결과를 `state.sh write interview-result`(또는 `--save-as`)에 저장 → 후속 exec/plan 이 prefetch. 질문 뱅크는 `interview.json`(LLM 호출 없는 결정론). `--to/--threshold/--max-rounds/--timeout/--save-as/--dry-run`. `OHMYCLAW_INTERVIEW_MOCK_RESPONSES` 테스트 모드. 13 interview.bats.
+- **US-102 cli.sh `commands` verb** — Telegram 슬래시 명령어 매니페스트(`commands.json`). `list`(표) / `json`(setMyCommands 페이로드) / `botfather`(@BotFather 형식) / `register`(적용 가이드 출력) / `dispatch`(인바운드 `/명령` → verb 라우팅) / `menu`(명령 팔레트를 버튼으로). `omc_` 네임스페이스로 `/hud` 등 충돌 방지 + 친근한 alias(`/interview`, `/ohmyclaw interview`) + `@botname`/2토큰 인식. `OHMYCLAW_COMMANDS_MOCK` 테스트 모드. 17 commands.bats.
+- **US-103 슬래시 명령어를 버튼으로** — `commands menu` 가 `action.type="command"` 버튼을 발화 → 클릭 시 채널 네이티브 슬래시 명령 경로로 실행. 인터뷰/ask 선택지는 `action.type="callback"` value.
+
+### Changed — openclaw 버튼 API 정합 (BREAKING fix)
+
+- **`cmd_ask` 버튼 전송을 `--buttons {inline_keyboard}` → `--presentation {blocks[buttons]}` 로 마이그레이션.** 실제 openclaw 2026.6.6 은 `--buttons` 플래그를 인식하지 않으며("OpenClaw does not recognize option --buttons"), 버튼은 `message send --presentation` 의 `MessagePresentationButtonsBlock` 으로 전달한다. v1.5.0 의 ask/exec/plan-gate/gap-gate 버튼은 mock 테스트만 통과했을 뿐 실제 런타임에서는 전송 실패 상태였음 — 본 릴리즈에서 실제 동작하도록 수정. 발화 payload 는 실 openclaw CLI `--dry-run` 으로 수락 검증.
+- ask 응답값은 `action.value`(callback)로 전달되며 Telegram 64-byte callback_data 한계 검증 유지. 질문은 `MessagePresentationTextBlock` 으로 렌더.
+- `ask.bats` 23케이스를 presentation 스키마로 갱신(`inline_keyboard`/`callback_data` → `type:buttons`/`action.value`). 회귀 0건.
+- `SKILL.md` / `README.md` 슬래시 명령어 섹션에 `/ohmyclaw interview` + `commands` 추가. `docs/ask-flow.md` 에 인터뷰·presentation·슬래시 명령 섹션 추가.
+
+### Notes
+
+- **응답 폴링 한계**: openclaw 2026.6.6 에는 동기 `events wait` CLI 가 없다(기존 가정). 버튼 콜백은 비동기로 에이전트 턴에 재진입되는 것이 정석이며, `cmd_ask` 의 CLI 폴링은 부재 시 `--recommended`/timeout 으로 graceful degrade. 슬래시 명령 등록(setMyCommands)도 전용 CLI 가 없어 `commands register` 가 Bot API/@BotFather 적용 페이로드를 출력한다.
+- **테스트**: bats 229 PASS (기존 198 회귀 0건 + interview 13 + commands 17 + ask 마이그레이션). `make syntax` + `make schema`(ajv) clean.
+
 ## [1.5.0] — 2026-05-26
 
 ### Added — Interactive Ask Flow (4 anchors, 우로보로스 정합)
