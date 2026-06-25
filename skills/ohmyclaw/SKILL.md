@@ -58,6 +58,8 @@ ls "$(dirname $0)/routing.json" 2>/dev/null || \
 | `/ohmyclaw pool` | "계정 상태" | `$SKILL/pool.sh status` | 풀 + cooldown 표 |
 | `/ohmyclaw doctor` | "점검해줘" | § 12 bash snippet | 10항목 점검 |
 | `/ohmyclaw exec <task>` | "이거 해줘" | § 7 → executor.md | 직접 실행 |
+| `/ohmyclaw interview [topic]` | "요구사항 좀 정리해줘" | `$SKILL/cli.sh interview` | Socratic 4차원 버튼 인터뷰 (우로보로스) |
+| `/ohmyclaw menu` | "명령어 보여줘" | `$SKILL/cli.sh commands menu` | 슬래시 명령 팔레트(버튼) |
 | `/ohmyclaw plan <task>` | "계획 세워줘" | § 7 → planner.md | 계획 수립 |
 | `/ohmyclaw plan --consensus` | "합의해서 계획" | § 7 → planner→architect→critic | 합의 루프 |
 | `/ohmyclaw review` | "리뷰 좀" | § 7 → reviewer.md | 5관점 + 갭 감지 |
@@ -70,6 +72,23 @@ ls "$(dirname $0)/routing.json" 2>/dev/null || \
 > **자연어 매핑**: "ohmyclaw 사용량" → `/ohmyclaw`, "모델 뭐로?" → `/ohmyclaw route`, "계정 상태" → `/ohmyclaw pool`
 >
 > **주의**: `/hud` 단독은 OMC HUD 입니다. ohmyclaw 대시보드는 반드시 `/ohmyclaw` 으로 호출하세요.
+
+#### Telegram 슬래시 명령어 등록 + 버튼 팔레트 (v1.6.0)
+
+`cli.sh commands` 가 텔레그램 슬래시 명령어를 관리합니다. `omc_` 네임스페이스(예: `/omc_interview`, `/omc_exec`)로 타 봇 명령과 충돌을 막고, `/interview`·`/ohmyclaw interview` 같은 친근한 alias 도 인식합니다.
+
+```bash
+SKILL="$(dirname $(realpath skills/ohmyclaw/SKILL.md))/skills/ohmyclaw"
+"$SKILL/cli.sh" commands list                 # 명령 ↔ verb 매핑 표
+"$SKILL/cli.sh" commands botfather            # @BotFather 붙여넣기 형식
+"$SKILL/cli.sh" commands register             # setMyCommands JSON + 적용 가이드(Bot API/@BotFather)
+"$SKILL/cli.sh" commands menu --to $CHAT_ID   # 명령 팔레트를 버튼으로 발화 (클릭=네이티브 슬래시 실행)
+"$SKILL/cli.sh" commands dispatch --to $CHAT_ID "/omc_interview 결제 모듈"  # 인바운드 /명령 → verb 라우팅
+```
+
+> openclaw 2026.6.6 에는 setMyCommands 전용 CLI 가 없어 `register` 는 적용 페이로드를 출력합니다. 버튼은 모두 실제 openclaw `message send --presentation` (`MessagePresentation`) API 로 발화합니다 — 구버전 `--buttons {inline_keyboard}` 는 더 이상 인식되지 않습니다.
+
+**인터뷰**: `/ohmyclaw interview [topic]` 은 goal/constraint/success/context 4차원을 Socratic 버튼 질문으로 구체화하여 모호성 ≤ 0.2 까지 좁힌 뒤 결과를 `interview-result` state 에 저장합니다. 자세한 흐름: [docs/ask-flow.md](docs/ask-flow.md).
 
 ---
 

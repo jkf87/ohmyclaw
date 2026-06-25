@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# cli.sh ask verb — inline-keyboard builder + dry-run mechanics
+# cli.sh ask verb — openclaw MessagePresentation buttons + dry-run mechanics
+# (v1.6.0: --buttons{inline_keyboard} → --presentation{blocks[buttons]} 마이그레이션)
 
 load helpers
 
@@ -29,61 +30,61 @@ teardown() {
   [[ "$output" == *"ask"* ]]
 }
 
-# ── 2. dry-run: JSON shape — inline_keyboard key present ─────────────────────
-@test "dry-run emits inline_keyboard JSON" {
+# ── 2. dry-run: JSON shape — presentation buttons block present ──────────────
+@test "dry-run emits presentation buttons JSON" {
   run cl ask --to chat123 --question "Pick one" --option 1:Alpha --option 2:Beta
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"inline_keyboard"'* ]]
+  [[ "$output" == *'"type":"buttons"'* ]]
+  [[ "$output" == *'"action":{"type":"callback"'* ]]
 }
 
-# ── 3. dry-run: correct number of rows (one per option) ──────────────────────
-@test "dry-run produces one row per --option" {
+# ── 3. dry-run: correct number of buttons (one per option) ───────────────────
+@test "dry-run produces one button per --option" {
   run cl ask --to chat123 --question "Q?" \
     --option 1:First --option 2:Second --option 3:Third
   [ "$status" -eq 0 ]
-  # 3 options → JSON array has 3 inner arrays → three occurrences of "callback_data"
-  # Use Python/awk to count occurrences on a single line (grep -o counts matches, not lines)
+  # 3 options → action.value 가 3회 등장 (질문 text 블록엔 value 없음)
   local json_line
   json_line=$(echo "$output" | grep '^DRY_RUN_JSON:')
-  count=$(echo "$json_line" | awk -F'"callback_data"' '{print NF-1}')
+  count=$(echo "$json_line" | awk -F'"value":' '{print NF-1}')
   [ "$count" -eq 3 ]
 }
 
-# ── 4. dry-run: callback_data values match N part of N:label ─────────────────
-@test "dry-run callback_data values equal the N prefix of N:label" {
+# ── 4. dry-run: action.value 가 N:label 의 N 과 일치 ─────────────────────────
+@test "dry-run action.value equals the N prefix of N:label" {
   run cl ask --to chat123 --question "Q?" \
     --option 42:AnswerA --option 99:AnswerB
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"callback_data":"42"'* ]]
-  [[ "$output" == *'"callback_data":"99"'* ]]
+  [[ "$output" == *'"value":"42"'* ]]
+  [[ "$output" == *'"value":"99"'* ]]
 }
 
-# ── 5. dry-run: text values match label part of N:label ──────────────────────
-@test "dry-run text values equal the label suffix of N:label" {
+# ── 5. dry-run: label 가 N:label 의 label 과 일치 ────────────────────────────
+@test "dry-run label equals the label suffix of N:label" {
   run cl ask --to chat123 --question "Q?" \
     --option 1:Hello --option 2:World
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"text":"Hello"'* ]]
-  [[ "$output" == *'"text":"World"'* ]]
+  [[ "$output" == *'"label":"Hello"'* ]]
+  [[ "$output" == *'"label":"World"'* ]]
 }
 
-# ── 6. --other adds final row with __other__ callback_data ───────────────────
-@test "--other appends __other__ row at the end" {
+# ── 6. --other adds final button with __other__ value ────────────────────────
+@test "--other appends __other__ button at the end" {
   run cl ask --to chat123 --question "Q?" \
     --option 1:Yes --option 2:No --other
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"callback_data":"__other__"'* ]]
+  [[ "$output" == *'"value":"__other__"'* ]]
   [[ "$output" == *'Other (type answer)'* ]]
 }
 
-# ── 7. --other row is last (after regular options) ───────────────────────────
-@test "--other row appears after all regular option rows" {
+# ── 7. --other button is last (after regular options) ────────────────────────
+@test "--other button appears after all regular option buttons" {
   run cl ask --to chat123 --question "Q?" \
     --option 1:Yes --other
   [ "$status" -eq 0 ]
-  # __other__ must come after "1" callback_data in the output string
-  pos_regular=$(echo "$output" | grep -bo '"callback_data":"1"' | head -1 | cut -d: -f1)
-  pos_other=$(echo "$output"   | grep -bo '"callback_data":"__other__"' | head -1 | cut -d: -f1)
+  # __other__ value 가 "1" value 뒤에 와야 함
+  pos_regular=$(echo "$output" | grep -bo '"value":"1"' | head -1 | cut -d: -f1)
+  pos_other=$(echo "$output"   | grep -bo '"value":"__other__"' | head -1 | cut -d: -f1)
   [ -n "$pos_regular" ]
   [ -n "$pos_other" ]
   [ "$pos_other" -gt "$pos_regular" ]
@@ -165,17 +166,16 @@ teardown() {
   export OHMYCLAW_ASK_MOCK=1  # restore for teardown safety
 }
 
-# ── 18. JSON structure: 2D array (array of arrays) ───────────────────────────
-@test "JSON inline_keyboard is a 2D array (each button in its own row array)" {
+# ── 18. JSON structure: presentation blocks (text + buttons) ─────────────────
+@test "presentation has a text block and a buttons block of button objects" {
   run cl ask --to chat123 --question "Q?" --option 1:A --option 2:B
   [ "$status" -eq 0 ]
-  # Each button row is wrapped in [...], so JSON contains [[{...}],[{...}]]
-  # i.e. inline_keyboard value opens with [[ and each row is ],[
-  [[ "$output" == *'[{"text":'* ]]
-  # Confirm the outer array contains inner arrays: look for ],[
   local json
   json=$(echo "$output" | grep '^DRY_RUN_JSON:' | sed 's/^DRY_RUN_JSON: //')
-  [[ "$json" == *'],['* ]] || [[ "$json" == *'[['* ]]
+  # 유효 JSON + blocks[0]=text, buttons 블록 존재, 각 버튼은 label+action 객체
+  echo "$json" | jq -e '.blocks[0].type == "text"' >/dev/null
+  echo "$json" | jq -e '[.blocks[] | select(.type=="buttons")] | length == 1' >/dev/null
+  echo "$json" | jq -e '(.blocks[] | select(.type=="buttons").buttons[0]) | has("label") and has("action")' >/dev/null
 }
 
 # ── US-007: --save-as + prefetch ────────────────────────────────────────

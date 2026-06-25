@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "note": "Telegram 슬래시 명령어 매니페스트. `command` 는 Telegram setMyCommands 에 등록되는 단일 토큰(소문자/숫자/_, 1-32자) — `/hud` 등 타 스킬과 충돌 방지를 위해 omc_ 네임스페이스. `aliases` 는 dispatch 가 추가로 인식하는 친근한 형태. `verb` 는 cli.sh 디스패치 대상.",
+  "namespace": "omc",
+  "commands": [
+    {
+      "command": "omc_interview",
+      "aliases": ["interview", "ohmyclaw interview"],
+      "verb": "interview",
+      "description": "🦞 Socratic 인터뷰 — 요구사항을 버튼으로 구체화",
+      "args": "<topic>"
+    },
+    {
+      "command": "omc_ask",
+      "aliases": ["ask", "ohmyclaw ask"],
+      "verb": "ask",
+      "description": "선택지 버튼 질문 보내기",
+      "args": "--question <Q> --option N:label ..."
+    },
+    {
+      "command": "omc_exec",
+      "aliases": ["exec", "ohmyclaw exec"],
+      "verb": "exec",
+      "description": "모호성 게이트 + 모델 라우팅 실행",
+      "args": "<task>"
+    },
+    {
+      "command": "omc_route",
+      "aliases": ["route", "ohmyclaw route"],
+      "verb": "route",
+      "description": "작업에 맞는 모델 라우팅",
+      "args": "<task>"
+    },
+    {
+      "command": "omc_pool",
+      "aliases": ["pool", "ohmyclaw pool"],
+      "verb": "pool",
+      "description": "계정 풀 상태 보기",
+      "args": "status"
+    },
+    {
+      "command": "omc_doctor",
+      "aliases": ["doctor", "ohmyclaw doctor"],
+      "verb": "doctor",
+      "description": "엔진/state/hooks 전체 점검",
+      "args": ""
+    },
+    {
+      "command": "omc_cancel",
+      "aliases": ["cancel", "ohmyclaw cancel"],
+      "verb": "cancel",
+      "description": "라이프사이클 정리 (진행 작업 취소)",
+      "args": "[--force]"
+    },
+    {
+      "command": "omc_menu",
+      "aliases": ["menu", "ohmyclaw menu"],
+      "verb": "__menu__",
+      "description": "명령어 팔레트를 버튼으로 표시",
+      "args": ""
+    }
+  ]
+}

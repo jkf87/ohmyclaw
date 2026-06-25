@@ -106,6 +106,8 @@ _run_verb() {
     cancel)     cmd_cancel     "$@"; exit $? ;;
     ask)        cmd_ask        "$@"; exit $? ;;
     exec)       cmd_exec       "$@"; exit $? ;;
+    interview)  cmd_interview  "$@"; exit $? ;;
+    commands)   cmd_commands   "$@"; exit $? ;;
     plan-gate)  cmd_plan_gate  "$@"; exit $? ;;
     gap-gate)   cmd_gap_gate   "$@"; exit $? ;;
     version)    cmd_version    "$@"; exit $? ;;
@@ -268,37 +270,39 @@ cmd_ask() {
     exit 2
   fi
 
-  # ── 인라인 키보드 JSON 컴파일 ─────────────
-  # 각 옵션은 "N:label" 형식. callback_data 는 콜론 앞 N 부분.
-  # 결과: {"inline_keyboard":[[{"text":"label","callback_data":"N"}], ...]}
-  local rows=""
+  # ── presentation 버튼 컴파일 (openclaw MessagePresentation) ─────────────────
+  # 각 옵션 "N:label" → {label, action:{type:"callback", value:"N"}}.
+  # 실제 openclaw 2026.6.6 API 는 `message send --presentation '{"blocks":[...]}'`
+  # (구버전의 `--buttons {inline_keyboard}` 는 더 이상 인식되지 않음).
+  local opt_tsv=""
   local spec label cb_val
   for spec in "${option_specs[@]}"; do
-    cb_val="${spec%%:*}"          # 콜론 이전
-    label="${spec#*:}"            # 콜론 이후
+    cb_val="${spec%%:*}"          # 콜론 이전 → callback value
+    label="${spec#*:}"            # 콜론 이후 → 버튼 레이블
     if [[ -z "$cb_val" || -z "$label" || "$cb_val" == "$spec" ]]; then
       echo "ERROR: ask: --option must be in N:label format (got: '$spec')" >&2
       exit 2
     fi
-    # Telegram callback_data hard limit: 64 bytes
+    # Telegram callback_data hard limit: 64 bytes (presentation action.value → callback_data)
     if [[ ${#cb_val} -gt 64 ]]; then
       echo "ERROR: ask: --option callback_data '$cb_val' exceeds Telegram 64-byte limit (got: ${#cb_val})" >&2
       exit 2
     fi
-    local row
-    row=$(printf '[{"text":"%s","callback_data":"%s"}]' \
-      "$(printf '%s' "$label"   | sed 's/\\/\\\\/g; s/"/\\"/g')" \
-      "$(printf '%s' "$cb_val" | sed 's/\\/\\\\/g; s/"/\\"/g')")
-    rows="${rows:+$rows,}$row"
+    opt_tsv+="${cb_val}"$'\t'"${label}"$'\n'
   done
 
-  # --other 추가 행
+  # --other 버튼 (마지막)
   if [[ "$add_other" -eq 1 ]]; then
-    local other_row='[{"text":"✏️ Other (type answer)","callback_data":"__other__"}]'
-    rows="${rows:+$rows,}$other_row"
+    opt_tsv+="__other__"$'\t'"✏️ Other (type answer)"$'\n'
   fi
 
-  local keyboard_json="{\"inline_keyboard\":[$rows]}"
+  # jq 로 buttons 배열 + presentation 빌드 (모든 이스케이프 jq 처리)
+  local buttons_json presentation_json
+  buttons_json=$(printf '%s' "$opt_tsv" | jq -R -s \
+    '[ split("\n")[] | select(length>0) | split("\t")
+       | {label: .[1], action: {type: "callback", value: .[0]}} ]')
+  presentation_json=$(jq -cn --arg q "$question" --argjson btns "$buttons_json" \
+    '{blocks: [ {type:"text", text:$q}, {type:"buttons", buttons:$btns} ]}')
 
   # ── dry-run / mock 모드 ────────────────────
   # 우선순위:
@@ -306,8 +310,8 @@ cmd_ask() {
   #   2. OHMYCLAW_ASK_MOCK=1 + OHMYCLAW_ASK_MOCK_RESPONSE=<val>: 시뮬레이션 응답 + 저장 + echo
   #   3. OHMYCLAW_ASK_MOCK=1 단독: 기존 동작 (JSON emit, no save) — 외부 verb 가 자체 응답 처리할 때
   if [[ "$dry_run" -eq 1 ]]; then
-    echo "DRY_RUN_JSON: $keyboard_json"
-    echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --message $question --buttons $keyboard_json"
+    echo "DRY_RUN_JSON: $presentation_json"
+    echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --presentation $presentation_json"
     return 0
   fi
   if [[ "${OHMYCLAW_ASK_MOCK:-0}" == "1" ]]; then
@@ -316,17 +320,18 @@ cmd_ask() {
       echo "$OHMYCLAW_ASK_MOCK_RESPONSE"
       return 0
     fi
-    echo "DRY_RUN_JSON: $keyboard_json"
-    echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --message $question --buttons $keyboard_json"
+    echo "DRY_RUN_JSON: $presentation_json"
+    echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --presentation $presentation_json"
     return 0
   fi
 
-  # ── 실 모드: 메시지 전송 ──────────────────
+  # ── 실 모드: presentation 전송 ────────────
+  # NB: message send 의 delivery stdout 은 버린다 — cmd_ask 의 유일한 stdout 은
+  # 응답값이어야 함($(cmd_ask) 로 캡처하는 interview/exec/gap-gate 오염 방지). 에러는 stderr 로 유지.
   openclaw message send \
     --channel telegram \
     --target "$to" \
-    --message "$question" \
-    --buttons "$keyboard_json"
+    --presentation "$presentation_json" >/dev/null
 
   # ── 응답 폴링 ─────────────────────────────
   # openclaw CLI 가 있으면 CLI 폴링, 없으면 종료 124
@@ -370,7 +375,7 @@ cmd_ask() {
     openclaw message send \
       --channel telegram \
       --target "$to" \
-      --message "✏️ 답을 입력해주세요"
+      --message "✏️ 답을 입력해주세요" >/dev/null
     local other_answer=""
     other_answer=$(openclaw events wait --timeout "$timeout" 2>/dev/null) || true
     _ask_save_answer "$other_answer"
@@ -815,6 +820,311 @@ _gap_gate_map_response() {
 }
 
 # ──────────────────────────────────────────────
+# interview — Socratic 인터뷰 (우로보로스 정합)
+#
+# ohmyclaw 4차원 명확성(goal/constraint/success/context)을 따라 결정론적
+# Socratic 질문을 Telegram 인라인 버튼으로 발화한다. 응답을 crystallize 절로
+# 누적하여 ambiguity 점수를 재계산하고, score ≤ threshold(기본 0.2)에 도달하면
+# 조기 종료한다 ("질문은 모호성 ≤ 0.2 까지" — Ouroboros Socratic Clarity).
+# 이미 충분히 명확한 차원은 건너뛴다. 결과는 state(interview-result)에 저장되어
+# 후속 exec/plan 이 참조할 수 있다.
+#
+# Usage:
+#   cli.sh interview [<topic>] [--to <chat>] [--threshold <N>]
+#                    [--max-rounds <N>] [--timeout <N>] [--save-as <key>] [--dry-run]
+#
+# Env overrides (테스트용):
+#   OHMYCLAW_INTERVIEW_MOCK_RESPONSES="feature,no-break,tests,module"
+#       → cmd_ask 호출 없이 차례대로 응답 시뮬레이션 (질문당 1개, 순서대로 소비)
+# ──────────────────────────────────────────────
+cmd_interview() {
+  local topic="" to="self" timeout=120 threshold="0.2" dry_run=0 max_rounds=4
+  local save_as="interview-result"
+
+  # 첫 positional = topic (flag 가 아닌 경우)
+  if [[ $# -gt 0 && "${1:-}" != --* ]]; then
+    topic="$1"; shift
+  fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --to)         shift; to="${1:?--to requires a value}"; shift ;;
+      --topic)      shift; topic="${1:?--topic requires a value}"; shift ;;
+      --timeout)    shift; timeout="${1:?--timeout requires a value}"; shift ;;
+      --threshold)  shift; threshold="${1:?--threshold requires a value}"; shift ;;
+      --max-rounds) shift; max_rounds="${1:?--max-rounds requires a value}"; shift ;;
+      --save-as)    shift; save_as="${1:?--save-as requires a value}"; shift ;;
+      --dry-run)    dry_run=1; shift ;;
+      *) echo "ERROR: interview: unknown argument '$1'" >&2; exit 2 ;;
+    esac
+  done
+
+  local QFILE="$SCRIPT_DIR/interview.json"
+  if [[ ! -f "$QFILE" ]]; then
+    echo "ERROR: interview: question bank not found: $QFILE" >&2; exit 2
+  fi
+
+  local order
+  order=$(jq -r '.order[]' "$QFILE")
+
+  # ── dry-run: 각 차원 질문의 인라인 키보드만 컴파일 출력 ──
+  if [[ "$dry_run" -eq 1 ]]; then
+    local d
+    for d in $order; do
+      local q
+      q=$(jq -r --arg d "$d" '.dimensions[$d].question' "$QFILE")
+      local -a optargs=()
+      while IFS=$'\t' read -r val label; do
+        optargs+=(--option "${val}:${label}")
+      done < <(jq -r --arg d "$d" '.dimensions[$d].options[] | [.value,.label] | @tsv' "$QFILE")
+      echo "DRY_RUN_DIMENSION: $d"
+      cmd_ask --to "$to" --question "$q" "${optargs[@]}" --other --dry-run
+    done
+    return 0
+  fi
+
+  # ── mock 응답 (질문당 1개, 순서대로) ──
+  local -a mock_q=()
+  local have_mock=0
+  if [[ -n "${OHMYCLAW_INTERVIEW_MOCK_RESPONSES:-}" ]]; then
+    have_mock=1
+    IFS=',' read -r -a mock_q <<< "$OHMYCLAW_INTERVIEW_MOCK_RESPONSES"
+  fi
+
+  local crystallized="$topic"
+  local answers_json="[]"
+  local rounds=0 mock_idx=0
+  local d
+
+  for d in $order; do
+    # 현재 누적 텍스트 재채점
+    local score_json amb dim_clarity
+    score_json=$("$SCRIPT_DIR/ambiguity.sh" score "$crystallized" --threshold "$threshold" 2>/dev/null || echo '{}')
+    # NB: jq '.ambiguous // true' 는 false 를 빈값 취급하여 항상 true 가 됨 → has() 분기 사용
+    amb=$(echo "$score_json" | jq -r 'if has("ambiguous") then (.ambiguous|tostring) else "true" end' 2>/dev/null || echo true)
+
+    # 조기 종료: 더 이상 모호하지 않으면 질문 중단 (우로보로스 정합)
+    if [[ "$amb" == "false" ]]; then break; fi
+    if (( rounds >= max_rounds )); then break; fi
+
+    # 이미 충분히 명확한 차원은 건너뜀
+    dim_clarity=$(echo "$score_json" | jq -r --arg d "$d" '.dimensions[$d] // 0' 2>/dev/null || echo 0)
+    if awk "BEGIN{exit !(($dim_clarity) >= 0.99)}"; then continue; fi
+
+    local q recommended
+    q=$(jq -r --arg d "$d" '.dimensions[$d].question' "$QFILE")
+    recommended=$(jq -r --arg d "$d" '.dimensions[$d].recommended' "$QFILE")
+
+    # ── 응답 획득 ──
+    local ans=""
+    if [[ "$have_mock" -eq 1 ]]; then
+      ans="${mock_q[$mock_idx]:-$recommended}"
+      mock_idx=$(( mock_idx + 1 ))
+    else
+      local -a optargs=()
+      while IFS=$'\t' read -r val label; do
+        optargs+=(--option "${val}:${label}")
+      done < <(jq -r --arg d "$d" '.dimensions[$d].options[] | [.value,.label] | @tsv' "$QFILE")
+      local ask_rc=0
+      ans=$(
+        cmd_ask --to "$to" --question "$q" "${optargs[@]}" --other \
+          --timeout "$timeout" --recommended "$recommended" --save-as "interview-${d}"
+      ) || ask_rc=$?
+      [[ $ask_rc -ne 0 ]] && ans="$recommended"
+    fi
+
+    # ── 응답값 → crystallize 절 매핑 (Other 자유응답은 원문 사용) ──
+    local clause
+    clause=$(jq -r --arg d "$d" --arg v "$ans" \
+      '(.dimensions[$d].options[] | select(.value == $v) | .crystallize) // empty' "$QFILE")
+    [[ -z "$clause" ]] && clause="${d}: ${ans}"
+    crystallized="${crystallized:+$crystallized. }${clause}"
+
+    answers_json=$(echo "$answers_json" | jq -c --arg d "$d" --arg v "$ans" --arg c "$clause" \
+      '. + [{dimension:$d, answer:$v, clause:$c}]')
+    rounds=$(( rounds + 1 ))
+  done
+
+  # ── 최종 채점 + 저장 ──
+  local final_json final_score final_amb
+  final_json=$("$SCRIPT_DIR/ambiguity.sh" score "$crystallized" --threshold "$threshold" 2>/dev/null || echo '{}')
+  final_score=$(echo "$final_json" | jq -r '.score // 1' 2>/dev/null || echo 1)
+  final_amb=$(echo "$final_json"  | jq -r 'if has("ambiguous") then (.ambiguous|tostring) else "true" end' 2>/dev/null || echo true)
+
+  local now; now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local result_json
+  result_json=$(jq -cn \
+    --arg topic "$topic" \
+    --arg crys  "$crystallized" \
+    --argjson rounds  "$rounds" \
+    --argjson score   "$final_score" \
+    --argjson amb     "$final_amb" \
+    --argjson answers "$answers_json" \
+    --arg ts "$now" \
+    '{topic:$topic, crystallized:$crys, rounds:$rounds, score:$score, ambiguous:$amb, answers:$answers, ts:$ts, savedBy:"interview"}')
+  "$STATE_SH" write "$save_as" "$result_json" 2>/dev/null || true
+
+  echo "$result_json"
+  return 0
+}
+
+# ──────────────────────────────────────────────
+# commands — Telegram 슬래시 명령어 매니페스트 (register/dispatch/menu)
+#
+# Usage:
+#   cli.sh commands list                       # 사람용 표
+#   cli.sh commands json                        # setMyCommands API 페이로드
+#   cli.sh commands botfather                   # @BotFather 붙여넣기 형식
+#   cli.sh commands register [--to <scope>]     # openclaw commands set (없으면 페이로드 출력)
+#   cli.sh commands dispatch "<인바운드 /명령>" [--to <chat>]   # /명령 → verb 라우팅 실행
+#   cli.sh commands menu [--to <chat>] [--dry-run]             # 명령 팔레트를 버튼으로 발화
+#
+# Env overrides (테스트용):
+#   OHMYCLAW_COMMANDS_MOCK=1   → register/dispatch/menu 가 실제 호출 없이 페이로드/라우팅 emit
+# ──────────────────────────────────────────────
+cmd_commands() {
+  local sub="${1:-list}"; shift || true
+  local CFILE="$SCRIPT_DIR/commands.json"
+  if [[ ! -f "$CFILE" ]]; then
+    echo "ERROR: commands: manifest not found: $CFILE" >&2; exit 2
+  fi
+
+  case "$sub" in
+    list)
+      jq -r '.commands[] | "/\(.command)\t\(.description)\t→ cli.sh \(.verb) \(.args)"' "$CFILE"
+      ;;
+
+    json)
+      jq -c '[.commands[] | {command:.command, description:.description}]' "$CFILE"
+      ;;
+
+    botfather)
+      jq -r '.commands[] | "\(.command) - \(.description)"' "$CFILE"
+      ;;
+
+    register)
+      local to=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --to) shift; to="${1:-}"; shift ;;
+          *) shift ;;
+        esac
+      done
+      local payload
+      payload=$(jq -c '[.commands[] | {command:.command, description:.description}]' "$CFILE")
+      # openclaw 2026.6.6 에는 슬래시 명령 등록(Telegram setMyCommands) CLI 가 없다.
+      # → setMyCommands JSON 페이로드 + 적용 방법을 출력 (Bot API 또는 @BotFather).
+      echo "SET_MY_COMMANDS_JSON: $payload"
+      echo "# Telegram Bot API setMyCommands 로 등록:"
+      echo "#   curl -s \"https://api.telegram.org/bot<TOKEN>/setMyCommands\" \\"
+      echo "#     -H 'Content-Type: application/json' \\"
+      echo "#     -d '{\"commands\": ${payload}}'"
+      echo "# 또는 @BotFather 에 'cli.sh commands botfather' 출력을 붙여넣기."
+      [[ -n "$to" ]] && echo "# scope: $to"
+      return 0
+      ;;
+
+    dispatch)
+      local to="" raw=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --to) shift; to="${1:-}"; shift ;;
+          *)    raw="$1"; shift ;;
+        esac
+      done
+      if [[ -z "$raw" ]]; then
+        echo "ERROR: commands dispatch: 인바운드 메시지 문자열이 필요합니다" >&2; exit 2
+      fi
+      local msg="${raw#/}"                 # 선행 슬래시 제거
+      local first rest
+      first="${msg%%[[:space:]]*}"         # 첫 토큰
+      first="${first%%@*}"                 # @botname 제거
+      if [[ "$msg" == *[[:space:]]* ]]; then rest="${msg#*[[:space:]]}"; else rest=""; fi
+
+      local verb="" cand_rest="$rest"
+      verb=$(jq -r --arg c "$first" \
+        '(.commands[] | select(.command == $c or ((.aliases // []) | index($c))) | .verb) // empty' \
+        "$CFILE" | head -1)
+
+      # 2토큰 alias ("ohmyclaw interview ...") 처리
+      if [[ -z "$verb" && -n "$rest" ]]; then
+        local second two
+        second="${rest%%[[:space:]]*}"
+        two="${first} ${second}"
+        verb=$(jq -r --arg c "$two" \
+          '(.commands[] | select((.aliases // []) | index($c)) | .verb) // empty' \
+          "$CFILE" | head -1)
+        if [[ -n "$verb" ]]; then
+          if [[ "$rest" == *[[:space:]]* ]]; then cand_rest="${rest#*[[:space:]]}"; else cand_rest=""; fi
+        fi
+      fi
+
+      if [[ -z "$verb" ]]; then
+        echo "ERROR: commands dispatch: 알 수 없는 명령 '/$first'" >&2; exit 2
+      fi
+
+      # menu 의사-verb
+      if [[ "$verb" == "__menu__" ]]; then
+        if [[ "${OHMYCLAW_COMMANDS_MOCK:-0}" == "1" ]]; then
+          jq -cn --arg v menu --arg a "" --arg to "$to" '{resolved:$v, args:$a, to:$to}'
+          return 0
+        fi
+        cmd_commands menu --to "$to"
+        return $?
+      fi
+
+      if [[ "${OHMYCLAW_COMMANDS_MOCK:-0}" == "1" ]]; then
+        jq -cn --arg v "$verb" --arg a "$cand_rest" --arg to "$to" '{resolved:$v, args:$a, to:$to}'
+        return 0
+      fi
+
+      # 실행: 잔여 문자열을 단일 positional 로 전달 (+ --to). 별도 cli.sh 프로세스로 깨끗한 라이프사이클.
+      if [[ -n "$cand_rest" && -n "$to" ]]; then
+        "$SCRIPT_DIR/cli.sh" "$verb" "$cand_rest" --to "$to"
+      elif [[ -n "$cand_rest" ]]; then
+        "$SCRIPT_DIR/cli.sh" "$verb" "$cand_rest"
+      elif [[ -n "$to" ]]; then
+        "$SCRIPT_DIR/cli.sh" "$verb" --to "$to"
+      else
+        "$SCRIPT_DIR/cli.sh" "$verb"
+      fi
+      return $?
+      ;;
+
+    menu)
+      local to="self" mdry=0
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --to) shift; to="${1:-self}"; shift ;;
+          --dry-run) mdry=1; shift ;;
+          *) shift ;;
+        esac
+      done
+      # 슬래시 명령어를 버튼으로: action.type="command" → 클릭 시 채널 네이티브
+      # 슬래시 명령 경로로 실행 (등록된 omc_* 명령이 발동). 우로보로스 정합 팔레트.
+      local presentation_json
+      presentation_json=$(jq -c '
+        { title: "🦞 ohmyclaw 명령 팔레트",
+          blocks: [
+            {type:"text", text:"실행할 슬래시 명령을 선택하세요"},
+            {type:"buttons",
+             buttons: [ .commands[] | select(.verb != "__menu__")
+               | {label: ("/" + .command), action: {type:"command", command: ("/" + .command)}} ]}
+          ] }' "$CFILE")
+      if [[ "$mdry" -eq 1 || "${OHMYCLAW_COMMANDS_MOCK:-0}" == "1" ]] || ! command -v openclaw >/dev/null 2>&1; then
+        echo "DRY_RUN_JSON: $presentation_json"
+        echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --presentation $presentation_json"
+        return 0
+      fi
+      openclaw message send --channel telegram --target "$to" --presentation "$presentation_json"
+      ;;
+
+    *)
+      echo "ERROR: commands: 알 수 없는 하위명령 '$sub' (list|json|botfather|register|dispatch|menu)" >&2
+      exit 2 ;;
+  esac
+}
+
+# ──────────────────────────────────────────────
 # help
 # ──────────────────────────────────────────────
 cmd_help() {
@@ -843,6 +1153,18 @@ Verbs:
       [--plan <plan>]
       [--threshold <N>]
       [--dry-run]
+  interview [<topic>]             Socratic 인터뷰 — 4차원 명확성 버튼 질문 (우로보로스 정합)
+      [--to <chat>]
+      [--threshold <N>]
+      [--max-rounds <N>]
+      [--timeout <N>]
+      [--save-as <key>]
+      [--dry-run]
+  commands <sub>                  Telegram 슬래시 명령어 (list/json/botfather/register/dispatch/menu)
+      list | json | botfather
+      register [--to <scope>]
+      dispatch "<인바운드 /명령>" [--to <chat>]
+      menu [--to <chat>] [--dry-run]
   plan-gate                       Planner 모호성 게이트 (stdin JSON → ask dispatch)
       [--to <chat>]
       [--timeout N]
@@ -864,6 +1186,8 @@ Env:
   OHMYCLAW_SESSION_ID    세션 격리 활성화
   OHMYCLAW_STATE_DIR     ~/.cache/ohmyclaw (pool-state, legacy)
   OHMYCLAW_ASK_MOCK            1 → ask dry-run mode (테스트용)
+  OHMYCLAW_INTERVIEW_MOCK_RESPONSES  쉼표구분 응답 큐 → interview 가 ask 없이 순서대로 소비 (테스트용)
+  OHMYCLAW_COMMANDS_MOCK       1 → commands register/dispatch/menu dry-run (테스트용)
   OHMYCLAW_SKIP_AMBIGUITY      true → exec ambiguity gate 건너뜀
   OHMYCLAW_EXEC_MOCK_RESPONSE  exec ask 응답 시뮬레이션 (테스트용)
   OHMYCLAW_PLAN_MOCK_RESPONSE  plan-gate dry-run 시뮬레이션 응답 (테스트용)
@@ -880,7 +1204,7 @@ VERB="${1:-help}"; shift || true
 
 case "$VERB" in
   help|-h|--help) cmd_help ;;
-  doctor|route|pool|engine|state|hooks|cancel|ask|exec|plan-gate|gap-gate|version)
+  doctor|route|pool|engine|state|hooks|cancel|ask|exec|interview|commands|plan-gate|gap-gate|version)
     _run_verb "$VERB" "$@"
     ;;
   *)

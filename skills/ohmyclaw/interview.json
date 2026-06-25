@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "note": "Socratic 인터뷰 질문 뱅크 — ohmyclaw 4차원 명확성(우로보로스 정합). 각 옵션의 crystallize 텍스트는 ambiguity.sh 의 차원 키워드를 자연스럽게 포함하여, 응답 누적 시 모호성 점수가 결정론적으로 개선되도록 설계됨. LLM 호출 없는 휴리스틱.",
+  "order": ["goal", "constraint", "success", "context"],
+  "dimensions": {
+    "goal": {
+      "header": "목표",
+      "question": "🎯 이 작업의 핵심 목표는 무엇인가요?",
+      "recommended": "feature",
+      "options": [
+        { "value": "feature",  "label": "🛠 새 기능 구현",          "crystallize": "목표: 새로운 기능 구현 작업" },
+        { "value": "bugfix",   "label": "🐞 버그 수정",             "crystallize": "목표: 보고된 버그 수정 작업" },
+        { "value": "refactor", "label": "♻️ 리팩토링/구조 개선",     "crystallize": "목표: 기존 코드 리팩토링 작업" }
+      ]
+    },
+    "constraint": {
+      "header": "제약",
+      "question": "🧱 가장 중요한 제약은 무엇인가요?",
+      "recommended": "no-break",
+      "options": [
+        { "value": "no-break", "label": "🔒 기존 동작 보존 (무중단)", "crystallize": "제약: 기존 동작을 깨지 않는다 (스택 유지)" },
+        { "value": "stack",    "label": "📚 기술 스택 고정",          "crystallize": "제약: 현재 기술 스택을 그대로 유지한다" },
+        { "value": "deadline", "label": "⏰ 마감/시간 제약",          "crystallize": "제약: 정해진 마감까지 완료한다" }
+      ]
+    },
+    "success": {
+      "header": "완료조건",
+      "question": "✅ 무엇으로 '완료'를 판정하나요? (DoD)",
+      "recommended": "tests",
+      "options": [
+        { "value": "tests",  "label": "🧪 테스트 통과",   "crystallize": "완료조건: 모든 테스트가 통과한다" },
+        { "value": "review", "label": "👀 리뷰 승인",     "crystallize": "완료조건: 코드 리뷰 통과 후 승인" },
+        { "value": "manual", "label": "🖐 수동 검증 완료", "crystallize": "완료조건: 수동 검증 시나리오 통과" }
+      ]
+    },
+    "context": {
+      "header": "범위",
+      "question": "🗂 작업 대상 범위는 어디인가요? (구체 경로는 ✏️ Other 로)",
+      "recommended": "module",
+      "options": [
+        { "value": "file",   "label": "📄 단일 파일/함수", "crystallize": "범위: 단일 파일 (예: src/target.ts)" },
+        { "value": "module", "label": "📦 모듈/디렉터리",   "crystallize": "범위: 모듈 디렉터리 (예: src/)" },
+        { "value": "cross",  "label": "🌐 여러 모듈 횡단",   "crystallize": "범위: 여러 모듈 횡단 (예: src/, tests/)" }
+      ]
+    }
+  }
+}

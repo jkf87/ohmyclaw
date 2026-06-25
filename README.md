@@ -45,12 +45,30 @@ ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
 | `/ohmyclaw pool` | "계정 상태" | 풀 + cooldown 표 |
 | `/ohmyclaw doctor` | "점검해줘" | 10항목 점검 |
 | `/ohmyclaw exec <task>` | "이거 해줘" | 자율 실행 (executor.md) |
+| `/ohmyclaw interview [topic]` | "요구사항 정리해줘" | Socratic 4차원 버튼 인터뷰 (우로보로스) |
+| `/ohmyclaw menu` | "명령어 보여줘" | 슬래시 명령 팔레트(버튼) |
 | `/ohmyclaw plan <task>` | "계획 세워줘" | 계획 수립 (planner.md) |
 | `/ohmyclaw plan --consensus` | "합의해서 계획" | planner→architect→critic 합의 |
 | `/ohmyclaw review` | "리뷰 좀" | 5관점 리뷰 + 갭 감지 |
 | `/ohmyclaw team N <task>` | "3명이서 해" | 병렬 워커 |
 | `/ohmyclaw ralph <task>` | "끝까지 해" | 끝까지 루프 (executor+verifier) |
 | `/ohmyclaw debug <task>` | "버그 잡아" | 4단계 RCA |
+
+### Telegram 슬래시 명령어 & Socratic 인터뷰 (v1.6.0)
+
+ohmyclaw 는 텔레그램 슬래시 명령어를 **선택지 버튼**으로 노출합니다. 모든 버튼은 실제 openclaw `message send --presentation` (`MessagePresentation`) API 로 발화합니다.
+
+```bash
+cli.sh commands menu --to $CHAT_ID        # 슬래시 명령 팔레트를 버튼으로 (클릭=네이티브 슬래시 실행)
+cli.sh commands register                  # Telegram setMyCommands 등록 페이로드(+@BotFather 형식)
+cli.sh commands dispatch --to $CHAT_ID "/omc_interview 결제 모듈"   # 인바운드 /명령 → verb 라우팅
+
+cli.sh interview "결제 모듈 리팩토링" --to $CHAT_ID   # 4차원 Socratic 버튼 인터뷰
+```
+
+**Socratic 인터뷰** — Q00/ouroboros 의 "질문은 모호성 ≤ 0.2 까지" 원칙을 ohmyclaw 4차원 명확성(goal/constraint/success/context)에 이식. 각 질문이 인라인 버튼으로 나오고(`1/2/3 + ✏️ Other`), 응답을 누적해 모호성 점수를 재계산하며 충분히 명확해지면 **자동 종료**합니다. 결과는 `interview-result` state 에 저장되어 후속 `exec`/`plan` 이 참조합니다.
+
+> `omc_` 네임스페이스(`/omc_interview` 등)로 `/hud` 같은 타 봇 명령과 충돌을 방지하고, `/interview`·`/ohmyclaw interview` alias 와 `@botname`/2토큰도 인식합니다.
 
 ## HUD 대시보드
 
