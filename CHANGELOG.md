@@ -4,6 +4,20 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.7.0] — 2026-06-26
+
+### Added — GLM-5.2 차세대 플래그십 라우팅 지원
+
+Z.ai GLM-5.2 를 routing.json 단일 소스에 추가하고, HIGH 복잡도 coding/reasoning 의 새 1순위로 승격.
+
+- **모델 정의** `models["glm-5.2"]` — tier HIGH, reasoningMode, anthropicAlias opus, plans [pro, max]. scores coding 97 / reasoning 96 / korean 97 (GLM-5.1 대비 후속 우위). 하드 스펙(contextWindow/maxTokens)은 공식 발표 전까지 GLM-5.1 미러링(수치 날조 방지, 라우팅 점수만 상향).
+- **plan 가용성** — pro/max `allowedModels` 에 추가, lite `blockedModels` 에 추가.
+- **matrix 승격** — pro/max 의 `coding_general`/`coding_arch`/`reasoning` **HIGH** 셀을 glm-5.1 → **glm-5.2**. korean_nlp/debugging/data_analysis/security 및 MEDIUM/LOW 는 glm-5.1 유지(점진 전환).
+- **select-model.sh** — P81(reasoning_heavy + Pro/Max) → glm-5.2. P95 plan_block 강등 조건에 glm-5.2 추가(lite → glm-5).
+- **fallbackChains** — pro/max 및 withCodex/withClaudeCli/withOpenRouter 체인에서 glm-5.2 를 glm-5.1 바로 앞에 삽입(모든 체인에서 glm-5.2 > glm-5.1).
+- **테스트** — select-model.bats: 기존 4케이스(P81/HIGH/openrouter)를 glm-5.2 로 갱신 + glm-5.2 전용 4케이스(lite 차단·매니페스트·fallback·matrix HIGH) 추가. bats 233 PASS / 0 FAIL.
+- **문서** — README 모델표/플랜표, SKILL.md 플랜·모델표·강등 노트 갱신.
+
 ## [1.6.0] — 2026-06-26
 
 ### Added — Socratic Interview + Telegram 슬래시 명령어 (우로보로스 정합)

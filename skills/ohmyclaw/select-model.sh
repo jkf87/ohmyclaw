@@ -237,9 +237,9 @@ if [[ -z "$PICKED" && "$CODEX" == "true" && "$REASONING_HEAVY" == "true" ]]; the
   REASON="reasoning_heavy + codex (P82, OMX frontier, extended thinking)"
 fi
 
-# P81: reasoning_heavy + Pro/Max → glm-5.1
+# P81: reasoning_heavy + Pro/Max → glm-5.2 (차세대 플래그십, reasoning_score 최상위 glm)
 if [[ -z "$PICKED" && "$REASONING_HEAVY" == "true" && "$PLAN" != "lite" ]]; then
-  PICKED="glm-5.1"
+  PICKED="glm-5.2"
   REASON="reasoning_heavy + ${PLAN} (P81)"
 fi
 
@@ -296,8 +296,8 @@ if [[ -z "$PICKED" ]]; then
   REASON="matrix[${PLAN}][${CATEGORY}][${TIER}]"
 fi
 
-# P95 plan_block: lite 에서 glm-5.1 등장 시 강등
-if [[ "$PLAN" == "lite" && "$PICKED" == "glm-5.1" ]]; then
+# P95 plan_block: lite 에서 glm-5.1/glm-5.2 등장 시 강등
+if [[ "$PLAN" == "lite" && ( "$PICKED" == "glm-5.1" || "$PICKED" == "glm-5.2" ) ]]; then
   PICKED="glm-5"
   REASON="${REASON} → cap_for_lite"
 fi
