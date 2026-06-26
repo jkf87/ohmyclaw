@@ -4,6 +4,18 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.7.1] — 2026-06-26
+
+### Added — Telegram 슬래시 명령 자동 복구 (launchd self-heal)
+
+openclaw 2026.6.6 은 게이트웨이 시작 시 `deleteMyCommands`+`setMyCommands` 로 자기 명령을 재설정하여 ohmyclaw 의 `omc_*` 등록을 덮어쓴다. 이를 자동 복구하는 운영 도구 추가.
+
+- **`scripts/telegram-register-commands.sh`** — 활성 텔레그램 봇(`~/.openclaw/openclaw.json`)마다 기존 명령 보존-병합 후 `omc_*` 를 setMyCommands. 명령 목록은 단일 소스 `cli.sh commands json`. **getMyCommands 캐시 stale 비결정성 대비 항상 merge+set**(idempotent). 토큰 비노출. env override(`OPENCLAW_JSON`/`OHMYCLAW_CLI`/`TELEGRAM_API_BASE`).
+- **`scripts/com.ohmyclaw.register-commands.plist.template`** — launchd LaunchAgent 템플릿. `RunAtLoad` + `StartInterval 300`(5분) → 게이트웨이 재시작 후 ≤5분 내 자동 복구.
+- **`skills/ohmyclaw/docs/telegram-slash-commands.md`** — 설치/운영/원리 문서.
+
+> 슬래시 명령 동작(`/ohmyclaw interview`, `commands menu` 버튼, `dispatch`)은 등록과 무관하게 항상 작동. 본 도구는 `/` 자동완성 메뉴 UX 의 영속성만 담당.
+
 ## [1.7.0] — 2026-06-26
 
 ### Added — GLM-5.2 차세대 플래그십 라우팅 지원
