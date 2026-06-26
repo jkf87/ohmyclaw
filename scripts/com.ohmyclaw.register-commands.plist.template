@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ohmyclaw Telegram 슬래시 명령 자동 재등록 LaunchAgent (macOS)
+
+  설치:
+    HOME_DIR="$HOME"
+    sed "s|__HOME__|$HOME_DIR|g" scripts/com.ohmyclaw.register-commands.plist.template \
+      > ~/Library/LaunchAgents/com.ohmyclaw.register-commands.plist
+    # 스크립트를 설치 위치로 복사 (또는 repo 경로를 직접 가리키게 수정)
+    cp scripts/telegram-register-commands.sh ~/.openclaw/ohmyclaw-register-commands.sh
+    chmod +x ~/.openclaw/ohmyclaw-register-commands.sh
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ohmyclaw.register-commands.plist
+
+  제거:
+    launchctl bootout gui/$(id -u)/com.ohmyclaw.register-commands
+
+  StartInterval 300 = 5분마다 + 로드/로그인 시 1회 → 게이트웨이 재시작 후 ≤5분 내 자동 복구.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ohmyclaw.register-commands</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/.openclaw/ohmyclaw-register-commands.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.openclaw/logs/ohmyclaw-register-commands.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.openclaw/logs/ohmyclaw-register-commands.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>
