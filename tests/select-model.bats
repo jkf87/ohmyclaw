@@ -13,10 +13,10 @@ setup() {
   [ "$output" = "glm-5" ]
 }
 
-@test "matrix pro coding_general HIGH -> glm-5.1 or gpt-5.x" {
+@test "matrix pro coding_general HIGH -> glm-5.2 or gpt-5.x" {
   run sm "복잡한 트랜잭션 처리 + 동시성 + 분산 시스템 + 캐시 무효화 + 멀티 테넌시 + 마이크로서비스 + race condition + state machine + invariant + algorithm" coding_general --plan=pro
   [ "$status" -eq 0 ]
-  [[ "$output" == "glm-5.1" || "$output" == "gpt-5.5" || "$output" == "gpt-5.4" ]]
+  [[ "$output" == "glm-5.2" || "$output" == "gpt-5.5" || "$output" == "gpt-5.4" ]]
 }
 
 @test "matrix pro security MEDIUM -> glm-5 or glm-5.1" {
@@ -38,16 +38,16 @@ setup() {
   [[ "$output" =~ ^glm- ]]
 }
 
-@test "P81 reasoning_heavy + pro -> glm-5.1" {
+@test "P81 reasoning_heavy + pro -> glm-5.2" {
   run sm "분산 합의 정합성 증명 invariant" reasoning --plan=pro
   [ "$status" -eq 0 ]
-  [ "$output" = "glm-5.1" ]
+  [ "$output" = "glm-5.2" ]
 }
 
-@test "P81 reasoning_heavy + max -> glm-5.1" {
+@test "P81 reasoning_heavy + max -> glm-5.2" {
   run sm "lock-free 알고리즘 정합성 증명" reasoning --plan=max
   [ "$status" -eq 0 ]
-  [ "$output" = "glm-5.1" ]
+  [ "$output" = "glm-5.2" ]
 }
 
 @test "P82 reasoning_heavy + codex -> gpt-5.x" {
@@ -71,7 +71,8 @@ setup() {
 @test "openrouter overlay reasoning HIGH" {
   OPENROUTER_ENABLED=true run sm "분산 합의 정합성 증명 invariant + 복잡한 알고리즘 분석 + 다중 시나리오 검증 + tradeoff + race condition + lock-free + byzantine + state machine" reasoning --plan=pro
   [ "$status" -eq 0 ]
-  [[ "$output" =~ ^(openrouter-|gpt-|glm-5.1) ]]
+  # reasoning_heavy → P81 (glm-5.2) 이 openrouter overlay(P79) 보다 우선
+  [[ "$output" =~ ^(openrouter-|gpt-|glm-5\.2) ]]
 }
 
 @test "openrouter prefer-free LOW uses free model" {
@@ -136,4 +137,27 @@ setup() {
     out=$(sm "$q" auto --plan=lite)
     [ "$out" != "glm-5.1" ]
   done
+}
+
+# ── GLM-5.2 (차세대 플래그십) ─────────────────────────────────────────────────
+@test "regression lite never outputs glm-5.2 blocked and capped" {
+  for q in "간단" "코딩 작업" "복잡한 아키텍처 재설계" "분산 합의 증명 algorithm invariant"; do
+    out=$(sm "$q" reasoning --plan=lite)
+    [ "$out" != "glm-5.2" ]
+  done
+}
+
+@test "glm-5.2 registered in routing.json (pro/max allowed, lite blocked)" {
+  run jq -e '(.models["glm-5.2"]) and (.plans.pro.allowedModels|index("glm-5.2")) and (.plans.max.allowedModels|index("glm-5.2")) and (.plans.lite.blockedModels|index("glm-5.2"))' "$SKILL_DIR/routing.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "glm-5.2 is the top glm in pro/max coding+reasoning fallback chains" {
+  run jq -e '.fallbackChains.pro.coding[0]=="glm-5.2" and .fallbackChains.max.reasoning[0]=="glm-5.2"' "$SKILL_DIR/routing.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "matrix HIGH coding/reasoning routes to glm-5.2 (pro+max)" {
+  run jq -e '.matrix.pro.coding_arch.HIGH=="glm-5.2" and .matrix.pro.coding_general.HIGH=="glm-5.2" and .matrix.pro.reasoning.HIGH=="glm-5.2" and .matrix.max.coding_arch.HIGH=="glm-5.2" and .matrix.max.reasoning.HIGH=="glm-5.2"' "$SKILL_DIR/routing.json"
+  [ "$status" -eq 0 ]
 }

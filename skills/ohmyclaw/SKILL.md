@@ -97,7 +97,7 @@ SKILL="$(dirname $(realpath skills/ohmyclaw/SKILL.md))/skills/ohmyclaw"
 | 플랜 | 가격 | 모델 | 일일 토큰 | 동시 워커 | full 파이프라인 |
 |------|------|------|-----------|-----------|------------------|
 | **Lite** | $3/월 | GLM-5 Turbo, GLM-5 | 1.5M | 2 | ⚠️ 제한 |
-| **Pro**  | $15/월 | + GLM-5.1 | 8M | 4 | ✅ |
+| **Pro**  | $15/월 | + GLM-5.1, GLM-5.2 | 8M | 4 | ✅ |
 | **Max**  | $30/월 | 풀 모델 + 우선 슬롯 | 25M | 7 | ✅ |
 
 가입: https://z.ai/subscribe?ic=OTYO9JPFNV
@@ -115,7 +115,7 @@ echo 'export ZAI_CODING_PLAN=pro' >> ~/.zshrc
 export CODEX_OAUTH_ENABLED=true
 ```
 
-> **Lite 플랜 사용자**: GLM-5.1 미포함입니다. `routing.json` 의 `plan_block` 규칙이 자동으로 `glm-5.1 → glm-5` 로 강등합니다.
+> **Lite 플랜 사용자**: GLM-5.1/GLM-5.2 미포함입니다. `routing.json` 의 `plan_block` 규칙(P95)이 자동으로 `glm-5.1/glm-5.2 → glm-5` 로 강등합니다.
 
 ---
 
@@ -1181,6 +1181,7 @@ OHMYCLAW_SESSION_ID=alpha skills/ohmyclaw/cli.sh state write x '{"v":1}'
 | **GLM-5 Turbo** | LOW | 128K | 70 | 60 | 95 | zai · lite/pro/max |
 | **GLM-5** | MEDIUM | 128K | 88 | 82 | 95 | zai · lite/pro/max |
 | **GLM-5.1** ⚡ | HIGH | 204.8K | 95 | 95 | 96 | zai · pro/max |
+| **GLM-5.2** ⚡ 🆕 | HIGH | 204.8K | 97 | 96 | 97 | zai · pro/max (HIGH 1순위) |
 | **GPT-5.5** ⚡ *(선택)* | HIGH | — | OMX `frontier` | OMX `frontier` | OMX `frontier` | codex · OAuth pool |
 | GPT-5.4 *(legacy)* | HIGH | 256K | — | — | — | codex · OAuth pool (fallback) |
 

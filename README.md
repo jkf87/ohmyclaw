@@ -97,6 +97,7 @@ Models   glm-5-turbo, glm-5, glm-5.1, +OpenRouter 200+
 | **GLM-5 Turbo** | — | — | — | — | Lite / Pro / Max |
 | **GLM-5** | — | 86.0 | 84.0 | — | Lite / Pro / Max |
 | **GLM-5.1** | **58.4** (1위) | 86.2 | 95.3 | ⚡ 지원 | Pro / Max |
+| **GLM-5.2** 🆕 | TBD (차세대) | TBD | TBD | ⚡ 지원 | Pro / Max |
 | **GPT-5.4** | 57.7 | **92.8** | **100** | ⚡ 지원 | ChatGPT 구독 (OAuth) |
 | **OpenRouter** | 다양 | 다양 | 다양 | 모델별 | API 키 (무료+유료) |
 
@@ -105,6 +106,8 @@ Models   glm-5-turbo, glm-5, glm-5.1, +OpenRouter 200+
 > 🆕 **OpenRouter** 경유로 Claude Opus 4, DeepSeek R1, Gemini 2.5 Pro, Qwen3 235B 등 200+ 모델에 단일 API 키로 접근 가능. 무료 모델(Llama 3.3 70B, Qwen 2.5 72B 등)도 지원.
 >
 > **GLM-5.1** 은 SWE-Bench Pro 코딩 벤치마크 **세계 1위** (GPT-5.4, Claude Opus 4.6 을 앞섬). **GPT-5.4** 는 GPQA Diamond 추론 + AIME 수학에서 최고점. 한국어 전용 벤치마크는 현재 공식 발표 없음.
+>
+> 🆕 **GLM-5.2** 는 차세대 GLM 플래그십으로, Pro/Max 의 **HIGH 복잡도 coding/reasoning 새 1순위**이자 fallback 체인 최상위 glm 입니다 (`select-model.sh` P81 + matrix HIGH). 공식 벤치마크 발표 전까지 하드 스펙(context/maxTokens)은 GLM-5.1 을 미러링하며, 라우팅 점수만 후속 우위를 반영합니다. Lite 플랜은 미지원(자동 강등).
 >
 > 출처: [MarkTechPost](https://www.marktechpost.com/2026/04/08/z-ai-introduces-glm-5-1-an-open-weight-754b-agentic-model-that-achieves-sota-on-swe-bench-pro-and-sustains-8-hour-autonomous-execution/) · [Artificial Analysis](https://artificialanalysis.ai/models/gpt-5-4) · [BenchLM](https://benchlm.ai/models/glm-5-1)
 

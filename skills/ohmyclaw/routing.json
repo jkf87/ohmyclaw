@@ -84,6 +84,17 @@
       "plans": ["pro", "max"],
       "note": "Lite 플랜에서는 사용 불가. select-model.sh 가 자동 강등."
     },
+    "glm-5.2": {
+      "displayName": "GLM-5.2",
+      "tier": "HIGH",
+      "contextWindow": 204800,
+      "maxTokens": 131100,
+      "scores": { "coding": 97, "reasoning": 96, "korean": 97 },
+      "reasoningMode": true,
+      "anthropicAlias": "opus",
+      "plans": ["pro", "max"],
+      "note": "차세대 GLM 플래그십 — coding/reasoning HIGH 새 1순위. Lite 불가, select-model.sh 자동 강등. 하드 스펙은 공식 발표 전까지 GLM-5.1 미러링, scores 는 후속 우위 반영."
+    },
     "gpt-5.5": {
       "displayName": "GPT-5.5",
       "tier": "HIGH",
@@ -220,7 +231,7 @@
     "lite": {
       "priceUsdMonth": 3,
       "allowedModels": ["glm-5-turbo", "glm-5"],
-      "blockedModels": ["glm-5.1"],
+      "blockedModels": ["glm-5.1", "glm-5.2"],
       "quota": {
         "dailyTokens": 1500000,
         "sessionTokens": 300000,
@@ -233,7 +244,7 @@
     },
     "pro": {
       "priceUsdMonth": 15,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1"],
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1", "glm-5.2"],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 8000000,
@@ -247,7 +258,7 @@
     },
     "max": {
       "priceUsdMonth": 30,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1"],
+      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1", "glm-5.2"],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 25000000,
@@ -274,20 +285,20 @@
       "security":         { "LOW": "glm-5",       "MEDIUM": "glm-5", "HIGH": "glm-5" }
     },
     "pro": {
-      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "coding_arch":      { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.2" },
+      "coding_arch":      { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
       "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
+      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.2" },
       "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
       "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
       "security":         { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
     },
     "max": {
-      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
-      "coding_arch":      { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
+      "coding_arch":      { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
       "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
+      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
       "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
       "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
       "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
@@ -458,31 +469,31 @@
       "reasoning": ["glm-5", "glm-5-turbo"]
     },
     "pro": {
-      "coding":    ["glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "korean":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "reasoning": ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "max": {
-      "coding":    ["glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "korean":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "reasoning": ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withCodex": {
-      "coding":    ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5"],
-      "reasoning": ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5"],
+      "reasoning": ["gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withClaudeCli": {
-      "coding":    ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5"],
-      "reasoning": ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5"],
+      "reasoning": ["claude-code-experimental", "gpt-5.5", "gpt-5.4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
     },
     "withOpenRouter": {
-      "coding":    ["openrouter-claude-opus-4", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["openrouter-qwen3-235b",    "glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["openrouter-deepseek-r1",   "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["openrouter-claude-opus-4", "glm-5.1", "glm-5"],
-      "data":      ["openrouter-gemini-2.5-pro","glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding":    ["openrouter-claude-opus-4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "korean":    ["openrouter-qwen3-235b",    "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "reasoning": ["openrouter-deepseek-r1",   "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
+      "security":  ["openrouter-claude-opus-4", "glm-5.2", "glm-5.1", "glm-5"],
+      "data":      ["openrouter-gemini-2.5-pro","glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
     }
   }
 }
