@@ -838,6 +838,15 @@ _gap_gate_map_response() {
 # 이미 충분히 명확한 차원은 건너뛴다. 결과는 state(interview-result)에 저장되어
 # 후속 exec/plan 이 참조할 수 있다.
 #
+# 두 가지 모드:
+#   • 동기/프리뷰: cli.sh interview [<topic>] ...  (CLI 단독; 버튼 응답 불가 → degraded 표시)
+#   • 비동기 상태머신 (실 인터랙티브, openclaw 에이전트 구동):
+#       cli.sh interview start <topic> --to <chatId>   # 세션 시작 + 1번 질문(command 버튼) 발화
+#       cli.sh interview answer <value>                # 버튼 클릭 → 에이전트가 호출 → 기록+다음 질문
+#       cli.sh interview status | cancel
+#     command 버튼은 클릭 시 openclaw 가 synthetic 메시지(/omc_iv <value>)로 에이전트에 전달 →
+#     SKILL.md 가 'cli.sh interview answer <value>' 로 라우팅 → 상태머신 재개. 클릭 응답은 실제값(fallback:false).
+#
 # Usage:
 #   cli.sh interview [<topic>] [--to <chat>] [--threshold <N>]
 #                    [--max-rounds <N>] [--timeout <N>] [--save-as <key>] [--dry-run]
@@ -845,8 +854,17 @@ _gap_gate_map_response() {
 # Env overrides (테스트용):
 #   OHMYCLAW_INTERVIEW_MOCK_RESPONSES="feature,no-break,tests,module"
 #       → cmd_ask 호출 없이 차례대로 응답 시뮬레이션 (질문당 1개, 순서대로 소비)
+#   OHMYCLAW_ASK_MOCK=1  → 비동기 모드의 presentation 발화를 dry-run (실 openclaw 미호출)
 # ──────────────────────────────────────────────
 cmd_interview() {
+  # 비동기 상태머신 서브커맨드 (start/answer/status/cancel)
+  case "${1:-}" in
+    start)  shift; _interview_start  "$@"; return $? ;;
+    answer) shift; _interview_answer "$@"; return $? ;;
+    status) shift; _interview_status "$@"; return $? ;;
+    cancel) shift; _interview_cancel "$@"; return $? ;;
+  esac
+
   local topic="" to="self" timeout=120 threshold="0.2" dry_run=0 max_rounds=4
   local save_as="interview-result"
 
@@ -990,6 +1008,175 @@ cmd_interview() {
 
   echo "$result_json"
   return 0
+}
+
+# ──────────────────────────────────────────────
+# interview — 비동기 상태머신 헬퍼 (openclaw 에이전트 구동, command 버튼 클릭으로 재개)
+#   세션 state: interview-session {topic,to,threshold,order,answers,crystallized,askedDims,awaiting,status,ts}
+#   결과 state: interview-result (mode:"async", degraded:false — 클릭 응답은 실제값)
+# ──────────────────────────────────────────────
+_interview_send_presentation() {
+  local to="$1" pj="$2"
+  if [[ "${OHMYCLAW_ASK_MOCK:-0}" == "1" ]]; then
+    echo "DRY_RUN_JSON: $pj"
+    echo "DRY_RUN_CMD: openclaw message send --channel telegram --target $to --presentation $pj"
+    return 0
+  fi
+  if ! command -v openclaw >/dev/null 2>&1; then
+    echo "[interview] ⚠️ openclaw CLI가 PATH에 없습니다 — 질문 미발송 (which -a openclaw / PATH 확인)." >&2
+    return 1
+  fi
+  local rc=0
+  openclaw message send --channel telegram --target "$to" --presentation "$pj" >/dev/null || rc=$?
+  [[ $rc -ne 0 ]] && echo "[interview] ⚠️ 질문 발송 실패 (rc=$rc, target='$to') — openclaw 버전/PATH 또는 유효 chatId 확인." >&2
+  return $rc
+}
+
+# 질문 1개를 command-action 버튼으로 발화: 각 옵션 → /omc_iv <value>, Other → /omc_iv __other__
+_interview_send_question() {
+  local d="$1" to="$2"
+  local QFILE="$SCRIPT_DIR/interview.json"
+  local q; q=$(jq -r --arg d "$d" '.dimensions[$d].question' "$QFILE")
+  local pj
+  pj=$(jq -c --arg d "$d" --arg q "$q" '
+    { blocks: [
+        {type:"text", text:$q},
+        {type:"buttons", buttons:
+          ( (.dimensions[$d].options | map({label:.label, action:{type:"command", command:("/omc_iv " + .value)}}))
+            + [ {label:"✏️ Other (type answer)", action:{type:"command", command:"/omc_iv __other__"}} ] )
+        }
+    ] }' "$QFILE")
+  _interview_send_presentation "$to" "$pj"
+}
+
+# 다음 질문 결정(우로보로스: 모호성 ≤ threshold 면 종료, 이미 명확/이미 물은 차원 skip) → 발화 or 종료
+_interview_advance() {
+  local session; session=$("$STATE_SH" read interview-session 2>/dev/null)
+  [[ -z "$session" ]] && { echo "ERROR: 활성 인터뷰 세션 없음" >&2; exit 2; }
+  local crystallized threshold to
+  crystallized=$(echo "$session" | jq -r '.crystallized')
+  threshold=$(echo "$session" | jq -r '.threshold')
+  to=$(echo "$session" | jq -r '.to')
+
+  local score_json amb
+  score_json=$("$SCRIPT_DIR/ambiguity.sh" score "$crystallized" --threshold "$threshold" 2>/dev/null || echo '{}')
+  amb=$(echo "$score_json" | jq -r 'if has("ambiguous") then (.ambiguous|tostring) else "true" end' 2>/dev/null || echo true)
+  if [[ "$amb" == "false" ]]; then _interview_finalize; return $?; fi
+
+  local next_dim="" d asked clarity
+  while IFS= read -r d; do
+    [[ -z "$d" ]] && continue
+    asked=$(echo "$session" | jq -r --arg d "$d" '(.askedDims | index($d)) != null')
+    [[ "$asked" == "true" ]] && continue
+    clarity=$(echo "$score_json" | jq -r --arg d "$d" '.dimensions[$d] // 0')
+    if awk "BEGIN{exit !(($clarity) >= 0.99)}"; then continue; fi
+    next_dim="$d"; break
+  done < <(echo "$session" | jq -r '.order[]')
+
+  if [[ -z "$next_dim" ]]; then _interview_finalize; return $?; fi
+
+  session=$(echo "$session" | jq -c --arg d "$next_dim" '.awaiting=$d | .askedDims += [$d]')
+  "$STATE_SH" write interview-session "$session" 2>/dev/null || true
+  _interview_send_question "$next_dim" "$to"
+  jq -cn --arg d "$next_dim" --arg to "$to" '{status:"awaiting", dimension:$d, to:$to}'
+}
+
+# 최종화: interview-result(mode:async, degraded:false) 저장 + 세션 청소 + 요약 발송
+_interview_finalize() {
+  local session; session=$("$STATE_SH" read interview-session 2>/dev/null)
+  [[ -z "$session" ]] && { echo "ERROR: 활성 인터뷰 세션 없음" >&2; exit 2; }
+  local crystallized threshold to topic answers
+  crystallized=$(echo "$session" | jq -r '.crystallized')
+  threshold=$(echo "$session" | jq -r '.threshold')
+  to=$(echo "$session" | jq -r '.to')
+  topic=$(echo "$session" | jq -r '.topic')
+  answers=$(echo "$session" | jq -c '.answers')
+
+  local final_json final_score final_amb rounds
+  final_json=$("$SCRIPT_DIR/ambiguity.sh" score "$crystallized" --threshold "$threshold" 2>/dev/null || echo '{}')
+  final_score=$(echo "$final_json" | jq -r '.score // 1')
+  final_amb=$(echo "$final_json" | jq -r 'if has("ambiguous") then (.ambiguous|tostring) else "true" end')
+  rounds=$(echo "$answers" | jq 'length')
+
+  local now; now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local result_json
+  result_json=$(jq -cn --arg topic "$topic" --arg crys "$crystallized" \
+    --argjson rounds "$rounds" --argjson score "$final_score" --argjson amb "$final_amb" \
+    --argjson answers "$answers" --arg ts "$now" \
+    '{topic:$topic, crystallized:$crys, rounds:$rounds, score:$score, ambiguous:$amb, degraded:false, fallbackCount:0, answers:$answers, ts:$ts, savedBy:"interview", mode:"async"}')
+  "$STATE_SH" write interview-result "$result_json" 2>/dev/null || true
+  "$STATE_SH" clear interview-session 2>/dev/null || true
+
+  local summary; summary=$(printf '✅ 인터뷰 완료 — %s 라운드 / 모호성 %s\n%s' "$rounds" "$final_score" "$crystallized")
+  _interview_send_presentation "$to" "$(jq -cn --arg t "$summary" '{blocks:[{type:"text", text:$t}]}')" || true
+  echo "$result_json"
+}
+
+# start <topic> --to <chatId> [--threshold N]
+_interview_start() {
+  local topic="" to="" threshold="0.2"
+  if [[ $# -gt 0 && "${1:-}" != --* ]]; then topic="$1"; shift; fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --to)        shift; to="${1:?--to requires a value}"; shift ;;
+      --topic)     shift; topic="${1:?--topic requires a value}"; shift ;;
+      --threshold) shift; threshold="${1:?--threshold requires a value}"; shift ;;
+      *) echo "ERROR: interview start: unknown argument '$1'" >&2; exit 2 ;;
+    esac
+  done
+  [[ -z "$to" ]] && { echo "ERROR: interview start: --to <chatId> 필수 (실 인터랙션 대상)" >&2; exit 2; }
+  local QFILE="$SCRIPT_DIR/interview.json"
+  [[ -f "$QFILE" ]] || { echo "ERROR: question bank not found: $QFILE" >&2; exit 2; }
+
+  local order now session
+  order=$(jq -c '.order' "$QFILE")
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  session=$(jq -cn --arg t "$topic" --arg to "$to" --argjson thr "$threshold" --argjson order "$order" --arg ts "$now" \
+    '{topic:$t, to:$to, threshold:$thr, order:$order, answers:[], crystallized:$t, askedDims:[], awaiting:null, status:"active", ts:$ts}')
+  "$STATE_SH" write interview-session "$session" 2>/dev/null || true
+  _interview_advance
+}
+
+# answer <value>  (에이전트가 버튼 클릭 synthetic 명령 /omc_iv <value> 수신 후 호출; --to 는 세션에서 읽음)
+_interview_answer() {
+  local value=""
+  if [[ $# -gt 0 && "${1:-}" != --* ]]; then value="$1"; shift; fi
+  while [[ $# -gt 0 ]]; do case "$1" in --to) shift; shift ;; *) shift ;; esac; done
+  [[ -z "$value" ]] && { echo "ERROR: interview answer: <value> 필요" >&2; exit 2; }
+
+  local session; session=$("$STATE_SH" read interview-session 2>/dev/null)
+  [[ -z "$session" ]] && { echo "ERROR: 활성 인터뷰 세션 없음 (먼저 'interview start')" >&2; exit 2; }
+  local d to; d=$(echo "$session" | jq -r '.awaiting // empty'); to=$(echo "$session" | jq -r '.to')
+  [[ -z "$d" ]] && { echo "ERROR: 현재 대기 중인 질문이 없습니다" >&2; exit 2; }
+
+  # Other → 자유 입력 요청. awaiting 유지 → 다음 'interview answer <텍스트>' 가 free-text 로 처리됨.
+  if [[ "$value" == "__other__" ]]; then
+    _interview_send_presentation "$to" "$(jq -cn '{blocks:[{type:"text", text:"✏️ 답을 입력해 주세요 (자유 서술)"}]}')"
+    jq -cn --arg d "$d" '{status:"awaiting-freetext", dimension:$d}'
+    return 0
+  fi
+
+  local QFILE="$SCRIPT_DIR/interview.json"
+  local clause
+  clause=$(jq -r --arg d "$d" --arg v "$value" '(.dimensions[$d].options[]|select(.value==$v)|.crystallize)//empty' "$QFILE")
+  [[ -z "$clause" ]] && clause="${d}: ${value}"
+  session=$(echo "$session" | jq -c --arg d "$d" --arg v "$value" --arg c "$clause" \
+    '.answers += [{dimension:$d, answer:$v, clause:$c, fallback:false}]
+     | .crystallized = (if (.crystallized|length)>0 then (.crystallized + ". " + $c) else $c end)
+     | .awaiting = null')
+  "$STATE_SH" write interview-session "$session" 2>/dev/null || true
+  _interview_advance
+}
+
+_interview_status() {
+  local session; session=$("$STATE_SH" read interview-session 2>/dev/null)
+  if [[ -z "$session" ]]; then echo '{"status":"none"}'; return 0; fi
+  echo "$session" | jq -c '{status:.status, awaiting:.awaiting, asked:.askedDims, answers:(.answers|length), crystallized:.crystallized}'
+}
+
+_interview_cancel() {
+  "$STATE_SH" clear interview-session 2>/dev/null || true
+  echo '{"status":"cancelled"}'
 }
 
 # ──────────────────────────────────────────────
