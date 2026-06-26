@@ -90,6 +90,22 @@ SKILL="$(dirname $(realpath skills/ohmyclaw/SKILL.md))/skills/ohmyclaw"
 
 **인터뷰**: `/ohmyclaw interview [topic]` 은 goal/constraint/success/context 4차원을 Socratic 버튼 질문으로 구체화하여 모호성 ≤ 0.2 까지 좁힌 뒤 결과를 `interview-result` state 에 저장합니다. 자세한 흐름: [docs/ask-flow.md](docs/ask-flow.md).
 
+#### 🔴 인터뷰 비동기 오케스트레이션 (에이전트 필수 동작, v1.8.0)
+
+순수 CLI `interview <topic>` 는 동기라 버튼 클릭을 못 받습니다(폴백 → `degraded:true`). **버튼이 실제로 동작하려면** 에이전트가 아래 상태머신을 구동해야 합니다. openclaw 는 `command`-액션 버튼 클릭을 **synthetic 메시지(`/omc_iv <value>`)로 에이전트에게 전달**합니다.
+
+| 인바운드 (사용자/버튼) | 에이전트가 실행할 것 |
+|------------------------|----------------------|
+| `/ohmyclaw interview <topic>` 또는 `/omc_interview <topic>` | `cli.sh interview start "<topic>" --to <chat_id>` (chat_id = `inbound_meta.chat_id`) |
+| `/omc_iv <value>` (옵션 버튼 클릭) | `cli.sh interview answer "<value>"` |
+| `/omc_iv __other__` (Other 버튼) | 사용자에게 "답을 입력하세요" 안내 후, 다음 사용자 텍스트를 받아 `cli.sh interview answer "<사용자 텍스트>"` |
+
+- `start`/`answer` 는 **자동으로 다음 질문의 버튼을 발화**합니다. 에이전트는 추가 메시지를 보낼 필요 없이 그대로 두면 됩니다(`{"status":"awaiting","dimension":...}` 출력 = 다음 질문 대기 중).
+- 종료 시 `{"savedBy":"interview","mode":"async","degraded":false,...}` 출력 + `interview-result` state 저장 + 요약 메시지 발송. 클릭으로 받은 답이므로 **`degraded:false`**(진짜 인터뷰).
+- 진행 점검: `cli.sh interview status` · 중단: `cli.sh interview cancel`.
+
+> ⚠️ chat_id 없이(`--to` 누락 → 기본 `self`) 보내면 텔레그램이 거부합니다. 반드시 인바운드 컨텍스트의 chat_id 를 넘기세요.
+
 ---
 
 ## 2. Plan tiers

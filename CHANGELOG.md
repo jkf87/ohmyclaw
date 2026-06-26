@@ -4,6 +4,23 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.8.0] — 2026-06-26
+
+### Added — 비동기 인터뷰 상태머신 (실제 버튼 클릭 동작)
+
+동기 `interview` 는 CLI 1회성이라 버튼 클릭을 받을 수 없었다(openclaw 콜백은 비동기로 에이전트 턴에 전달 → 이미 끝난 프로세스엔 미도달 → `degraded` 폴백). 클릭이 실제로 인터뷰를 진행시키도록 **재개 가능 상태머신 + 에이전트 구동** 모드 추가.
+
+- **`interview start <topic> --to <chatId>`** — 세션(`interview-session` state) 시작 + 첫 질문을 **`command`-액션 버튼**(`/omc_iv <value>`)으로 발화. openclaw 가 클릭을 synthetic 슬래시 명령으로 에이전트에 전달(`callback` 타입과 달리 받는 주체 존재).
+- **`interview answer <value>`** — 에이전트가 버튼 클릭(`/omc_iv <value>`) 수신 후 호출. 답을 기록(`fallback:false`)·재채점·다음 질문 발화 or 종료. `--to` 는 세션에서 자동 로드.
+- **`interview status` / `interview cancel`** — 진행 점검 / 중단.
+- **Other**: `/omc_iv __other__` → 자유입력 안내(awaiting 유지) → 다음 텍스트를 `interview answer "<텍스트>"` 로.
+- 종료 시 `interview-result`(**`mode:"async"`, `degraded:false`**) 저장 + 요약 발송. 우로보로스 조기 종료(모호성 ≤ threshold), 이미 명확한 차원 skip 동일.
+- **SKILL.md §1** — 에이전트 비동기 오케스트레이션 규약(인바운드 `/omc_interview`/`/omc_iv` → cli 라우팅) 추가. 동기 `interview <topic>` 모드는 보존(프리뷰/CLI).
+- **테스트** — interview-async.bats +11 (start/answer/finalize 시퀀스·조기종료·Other/free-text·status/cancel·가드·동기 회귀, `OHMYCLAW_ASK_MOCK` dry-run 결정론). bats **246 PASS / 0 FAIL**.
+- **문서** — docs/ask-flow.md 비동기 상태머신 섹션.
+
+> 최종 "클릭→다음 질문" 텔레그램 왕복(LLM 이 SKILL.md 오케스트레이션을 따르는 부분)은 라이브 게이트웨이에서 검증 필요 — 상태머신·버튼 페이로드·세션 전이는 bats 로 결정론 검증됨.
+
 ## [1.7.2] — 2026-06-26
 
 ### Fixed — 인터뷰 폴백 가시화 (조용한 가짜 성공 방지)
