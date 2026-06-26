@@ -152,3 +152,42 @@ teardown() {
   # constraint 의 recommended 는 no-break
   [ "$(echo "$j" | jq -r '.answers[1].answer')" = "no-break" ]
 }
+
+# ── 14. mock 응답은 fallback 아님 → degraded:false (정직성 B) ──────────────────
+@test "mock-mode answers are not fallback (degraded false)" {
+  export OHMYCLAW_INTERVIEW_MOCK_RESPONSES="feature,no-break,tests"
+  run cl interview "결제"
+  [ "$status" -eq 0 ]
+  local j; j=$(json_line "$output")
+  [ "$(echo "$j" | jq -r '.degraded')" = "false" ]
+  [ "$(echo "$j" | jq -r '.fallbackCount')" -eq 0 ]
+  [ "$(echo "$j" | jq -r '[.answers[].fallback] | any')" = "false" ]
+}
+
+# ── 15. 응답 채널 없으면 degraded + 답변별 fallback 표시 (조용한 가짜 성공 방지) ──
+@test "real-mode without response channel flags degraded + per-answer fallback" {
+  # openclaw 스텁: message send 성공, events wait 실패 → recommended 폴백 유도 (실 네트워크 없음)
+  local stub; stub=$(mktemp -d)
+  cat > "$stub/openclaw" <<'EOF'
+#!/bin/sh
+case "$1 $2" in
+  "message send") exit 0 ;;
+  "events wait")  exit 1 ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$stub/openclaw"
+  local oldpath="$PATH"; export PATH="$stub:$PATH"
+  run cl interview "결제"
+  export PATH="$oldpath"; rm -rf "$stub"
+  [ "$status" -eq 0 ]
+  local j; j=$(json_line "$output")
+  [ "$(echo "$j" | jq -r '.degraded')" = "true" ]
+  local rounds fb; rounds=$(echo "$j" | jq -r '.rounds'); fb=$(echo "$j" | jq -r '.fallbackCount')
+  [ "$fb" -eq "$rounds" ]
+  [ "$(echo "$j" | jq -r '[.answers[].fallback] | all')" = "true" ]
+  # 폴백 답변은 recommended 기본값
+  [ "$(echo "$j" | jq -r '.answers[0].answer')" = "feature" ]
+  # stderr 경고 노출
+  [[ "$output" == *"DEGRADED"* ]]
+}
