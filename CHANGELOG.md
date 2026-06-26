@@ -4,6 +4,19 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.7.2] — 2026-06-26
+
+### Fixed — 인터뷰 폴백 가시화 (조용한 가짜 성공 방지)
+
+실 모드에서 openclaw 가 PATH 에 없거나(또는 구버전), 유효 chatId(`--to`) 없이 기본 `self` 로 보내거나, openclaw 2026.6.6 에 동기 `events wait` CLI 가 없어 버튼 응답을 못 받을 때, `interview`/`ask` 가 **조용히 `recommended` 기본값으로 폴백**하여 마치 인터뷰가 성공한 것처럼 보이던 문제 수정.
+
+- **`cmd_ask`** — 실 모드 stderr 경고 추가: (a) openclaw CLI 부재(`which -a openclaw` 안내), (b) `message send` 실패(rc + target + chatId 힌트), (c) 버튼 응답 없음 → recommended 폴백. stdout(응답값)은 불변 → caller(`$(cmd_ask)`)·테스트 영향 없음.
+- **`cmd_interview`** — 결과에 **`degraded`**(폴백이 1개라도 있으면 true) + **`fallbackCount`** + 답변별 **`fallback`** 필드 추가(폴백 여부는 `interview-<d>` state 의 `timeoutFallback` 으로 판정). degraded 시 stderr 로 "N/M 답변이 기본값(버튼 미수신)" + 올바른 실행법(`--to <chatId>` + 에이전트 컨텍스트) 안내. mock 응답은 `fallback:false`.
+- **테스트** — interview.bats +2 (mock=degraded:false / 응답채널 없음=degraded:true·전 답변 fallback, openclaw 스텁으로 결정론적). bats **235 PASS / 0 FAIL**.
+- **문서** — docs/ask-flow.md 인터뷰 정직성 섹션.
+
+> 동작 자체(`/ohmyclaw interview` 흐름)는 불변 — 폴백을 **숨기지 않고 드러낼** 뿐. 실제 버튼 인터랙션은 올바른 openclaw PATH + `--to <chatId>` + 에이전트 비동기 콜백 컨텍스트에서 동작.
+
 ## [1.7.1] — 2026-06-26
 
 ### Added — Telegram 슬래시 명령 자동 복구 (launchd self-heal)

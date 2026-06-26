@@ -327,11 +327,19 @@ cmd_ask() {
 
   # ── 실 모드: presentation 전송 ────────────
   # NB: message send 의 delivery stdout 은 버린다 — cmd_ask 의 유일한 stdout 은
-  # 응답값이어야 함($(cmd_ask) 로 캡처하는 interview/exec/gap-gate 오염 방지). 에러는 stderr 로 유지.
+  # 응답값이어야 함($(cmd_ask) 로 캡처하는 interview/exec/gap-gate 오염 방지).
+  # 정직성(B): 발송 실패를 조용히 삼키지 않고 stderr 로 명확히 경고한다.
+  if ! command -v openclaw >/dev/null 2>&1; then
+    echo "[ask] ⚠️ openclaw CLI가 PATH에 없습니다 — 버튼 미발송 (which -a openclaw / PATH 확인)." >&2
+  fi
+  local send_rc=0
   openclaw message send \
     --channel telegram \
     --target "$to" \
-    --presentation "$presentation_json" >/dev/null
+    --presentation "$presentation_json" >/dev/null || send_rc=$?
+  if [[ $send_rc -ne 0 ]]; then
+    echo "[ask] ⚠️ 버튼 발송 실패 (rc=$send_rc, target='$to') — openclaw 버전/PATH 또는 유효 chatId(--to <chatId>) 확인." >&2
+  fi
 
   # ── 응답 폴링 ─────────────────────────────
   # openclaw CLI 가 있으면 CLI 폴링, 없으면 종료 124
@@ -347,6 +355,7 @@ cmd_ask() {
   # ── timeout 처리 ──────────────────────────
   if [[ "$poll_rc" -ne 0 ]]; then
     if [[ -n "$recommended" ]]; then
+      echo "[ask] ⚠️ 버튼 응답 없음(openclaw events wait 미지원/타임아웃) — recommended '$recommended' 로 폴백 (실제 선택 아님)." >&2
       echo "$recommended"
       local fb_dir="$OHMYCLAW_HOME/state"
       mkdir -p "$fb_dir"
@@ -892,7 +901,7 @@ cmd_interview() {
 
   local crystallized="$topic"
   local answers_json="[]"
-  local rounds=0 mock_idx=0
+  local rounds=0 mock_idx=0 fallback_count=0
   local d
 
   for d in $order; do
@@ -915,7 +924,7 @@ cmd_interview() {
     recommended=$(jq -r --arg d "$d" '.dimensions[$d].recommended' "$QFILE")
 
     # ── 응답 획득 ──
-    local ans=""
+    local ans="" fb="false"
     if [[ "$have_mock" -eq 1 ]]; then
       ans="${mock_q[$mock_idx]:-$recommended}"
       mock_idx=$(( mock_idx + 1 ))
@@ -930,7 +939,14 @@ cmd_interview() {
           --timeout "$timeout" --recommended "$recommended" --save-as "interview-${d}"
       ) || ask_rc=$?
       [[ $ask_rc -ne 0 ]] && ans="$recommended"
+      # 폴백 판정: 실제 버튼 응답을 못 받아 recommended 로 떨어졌는가
+      # (cmd_ask 가 interview-<d> state 에 timeoutFallback:true 기록). 정직성(B) 위해 표시.
+      if [[ $ask_rc -ne 0 ]] || \
+         [[ "$("$STATE_SH" read "interview-${d}" 2>/dev/null | jq -r '.timeoutFallback==true' 2>/dev/null || echo false)" == "true" ]]; then
+        fb="true"
+      fi
     fi
+    [[ "$fb" == "true" ]] && fallback_count=$(( fallback_count + 1 ))
 
     # ── 응답값 → crystallize 절 매핑 (Other 자유응답은 원문 사용) ──
     local clause
@@ -939,8 +955,8 @@ cmd_interview() {
     [[ -z "$clause" ]] && clause="${d}: ${ans}"
     crystallized="${crystallized:+$crystallized. }${clause}"
 
-    answers_json=$(echo "$answers_json" | jq -c --arg d "$d" --arg v "$ans" --arg c "$clause" \
-      '. + [{dimension:$d, answer:$v, clause:$c}]')
+    answers_json=$(echo "$answers_json" | jq -c --arg d "$d" --arg v "$ans" --arg c "$clause" --argjson f "$fb" \
+      '. + [{dimension:$d, answer:$v, clause:$c, fallback:$f}]')
     rounds=$(( rounds + 1 ))
   done
 
@@ -951,6 +967,7 @@ cmd_interview() {
   final_amb=$(echo "$final_json"  | jq -r 'if has("ambiguous") then (.ambiguous|tostring) else "true" end' 2>/dev/null || echo true)
 
   local now; now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local degraded="false"; [[ "$fallback_count" -gt 0 ]] && degraded="true"
   local result_json
   result_json=$(jq -cn \
     --arg topic "$topic" \
@@ -958,10 +975,18 @@ cmd_interview() {
     --argjson rounds  "$rounds" \
     --argjson score   "$final_score" \
     --argjson amb     "$final_amb" \
+    --argjson degraded "$degraded" \
+    --argjson fbcount "$fallback_count" \
     --argjson answers "$answers_json" \
     --arg ts "$now" \
-    '{topic:$topic, crystallized:$crys, rounds:$rounds, score:$score, ambiguous:$amb, answers:$answers, ts:$ts, savedBy:"interview"}')
+    '{topic:$topic, crystallized:$crys, rounds:$rounds, score:$score, ambiguous:$amb, degraded:$degraded, fallbackCount:$fbcount, answers:$answers, ts:$ts, savedBy:"interview"}')
   "$STATE_SH" write "$save_as" "$result_json" 2>/dev/null || true
+
+  # 정직성(B): 폴백이 섞이면 결과가 '진짜 인터뷰'가 아님을 명확히 알린다 (조용한 가짜 성공 방지).
+  if [[ "$fallback_count" -gt 0 ]]; then
+    echo "[interview] ⚠️ DEGRADED: ${fallback_count}/${rounds} 답변이 recommended 기본값입니다 (버튼 미수신 — 실제 선택 아님)." >&2
+    echo "[interview]    openclaw 에이전트 컨텍스트(올바른 PATH)에서 '--to <chatId>' 로 실행해야 버튼 인터랙션이 동작합니다." >&2
+  fi
 
   echo "$result_json"
   return 0
