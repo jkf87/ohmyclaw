@@ -37,22 +37,33 @@ ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
 
 ## 슬래시 명령어
 
-| 명령어 | 자연어 | 역할 |
-|--------|--------|------|
-| **`/ohmyclaw`** | "대시보드" "상태 보여줘" | 플랜/계정/quota/모델 대시보드 |
-| `/ohmyclaw compact` | "상태 한 줄" | `🦞 PRO \| zai:1 \| codex:off \| 0%` |
-| `/ohmyclaw route <task>` | "이거 어떤 모델?" | 라우팅 결정 JSON |
-| `/ohmyclaw pool` | "계정 상태" | 풀 + cooldown 표 |
-| `/ohmyclaw doctor` | "점검해줘" | 10항목 점검 |
-| `/ohmyclaw exec <task>` | "이거 해줘" | 자율 실행 (executor.md) |
-| `/ohmyclaw interview [topic]` | "요구사항 정리해줘" | Socratic 4차원 버튼 인터뷰 (우로보로스) |
-| `/ohmyclaw menu` | "명령어 보여줘" | 슬래시 명령 팔레트(버튼) |
-| `/ohmyclaw plan <task>` | "계획 세워줘" | 계획 수립 (planner.md) |
-| `/ohmyclaw plan --consensus` | "합의해서 계획" | planner→architect→critic 합의 |
-| `/ohmyclaw review` | "리뷰 좀" | 5관점 리뷰 + 갭 감지 |
-| `/ohmyclaw team N <task>` | "3명이서 해" | 병렬 워커 |
-| `/ohmyclaw ralph <task>` | "끝까지 해" | 끝까지 루프 (executor+verifier) |
-| `/ohmyclaw debug <task>` | "버그 잡아" | 4단계 RCA |
+명확성 게이트(우로보로스 정합) 계열과 그 외 라우팅·실행·운영 명령으로 나뉩니다.
+
+### 🐍 우로보로스 — 명확성 게이트 ("명확해질 때까지 묻는다")
+
+| 명령어 | 사용법 |
+|--------|--------|
+| `/ohmyclaw interview [주제]` | 4차원(목표/제약/완료조건/범위) 버튼 질문으로 요구사항 구체화 — 모호성 ≤ 0.2까지, 결과 `interview-result` 저장 |
+| `/ohmyclaw cancel [--force]` | 진행 작업 취소 + ESCALATED 정리 |
+| `cli.sh ask --question … --option N:label …` | 결정 지점에 1/2/3 + Other 선택지 질문 발화 |
+| `cli.sh plan-gate` · `cli.sh gap-gate` | planner 모호성 / 리뷰 갭(GAP_DETECTED) 게이트 (stdin JSON → 질문) |
+
+### ⚙️ 그 외 — 라우팅·실행·운영  *(🐍 = 우로보로스 게이트 내장)*
+
+| 명령어 | 사용법 |
+|--------|--------|
+| **`/ohmyclaw`** · `/ohmyclaw compact` | HUD 대시보드 / 한 줄 상태 |
+| `/ohmyclaw route <작업>` | 작업에 맞는 모델 라우팅 |
+| `/ohmyclaw pool` | 계정 풀 + cooldown 상태 |
+| `/ohmyclaw doctor` | 엔진/state/hooks 점검 |
+| `/ohmyclaw exec <작업>` 🐍 | 자율 실행 — 실행 전 모호성 게이트 통과 후 진행 |
+| `/ohmyclaw plan <작업>` [`--consensus`] | 계획 수립 (consensus = planner→architect→critic 합의) |
+| `/ohmyclaw review` 🐍 | 5관점 리뷰 + 갭 감지 |
+| `/ohmyclaw team N <작업>` | 병렬 워커 N명 |
+| `/ohmyclaw ralph <작업>` | 통과까지 끝까지 루프 (executor+verifier) |
+| `/ohmyclaw debug <작업>` | 4단계 RCA 디버깅 |
+| `/ohmyclaw menu` | 슬래시 명령 팔레트(버튼) |
+| `cli.sh commands <sub>` | 텔레그램 슬래시 명령 등록/관리 (list/json/botfather/register/dispatch/menu) |
 
 ### Telegram 슬래시 명령어 & Socratic 인터뷰 (v1.6.0)
 
