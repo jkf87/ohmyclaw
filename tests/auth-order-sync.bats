@@ -149,3 +149,52 @@ MOCK
   run wc -l < "$ORDER_LOG"
   [ "${output// /}" -eq 0 ]
 }
+
+@test "cold-start: empty provider list on first call → retry recovers" {
+  # 콜드스타트 재현: 'auth list --json'(provider 목록용) 첫 호출은 빈 결과, 이후 정상.
+  local counter="${OHMYCLAW_STATE_DIR}/al_count"; echo 0 > "$counter"
+  cat > "$MOCK_BIN/openclaw" <<MOCK
+#!/usr/bin/env bash
+args="\$*"
+case "\$args" in
+  *"models auth list"*"--provider openai"*)
+    echo '{"profiles":[{"id":"openai:default","provider":"openai"},{"id":"openai:jjoongoo@gmail.com","provider":"openai"}]}' ;;
+  *"models auth list"*)
+    c=\$(cat "$counter"); echo \$((c+1)) > "$counter"
+    if [ "\$c" -eq 0 ]; then echo '{"profiles":[]}'; else echo '{"profiles":[{"provider":"openai"}]}'; fi ;;
+  *"models status --probe --probe-provider openai"*) cat "$MOCK_PROBE_FILE" ;;
+  *"models status --agent "*"--json"*)
+    a=""; prev=""; for w in \$args; do [ "\$prev" = "--agent" ] && a="\$w"; prev="\$w"; done
+    if printf ' %s ' "\$MOCK_AGENTS_OPENAI" | grep -q " \$a "; then
+      echo '{"auth":{"oauth":{"providers":[{"provider":"openai"}]}}}'
+    else echo '{"auth":{"oauth":{"providers":[]}}}'; fi ;;
+  *"models auth order"*) echo "\$args" >> "\$MOCK_ORDER_LOG" ;;
+  *) echo '{}' ;;
+esac
+MOCK
+  chmod +x "$MOCK_BIN/openclaw"
+  set_probe expired ok
+  run "$SKILL_DIR/provider-health.sh" sync-auth-order --apply
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"openai"* ]]                    # 재시도로 openai 발견·처리
+  run grep -c "order set --provider openai" "$ORDER_LOG"
+  [ "$output" -eq 4 ]
+}
+
+@test "cold-start: OHMYCLAW_PH_NO_RETRY=1 skips retry (empty stays empty)" {
+  local counter="${OHMYCLAW_STATE_DIR}/al_count2"; echo 0 > "$counter"
+  cat > "$MOCK_BIN/openclaw" <<MOCK
+#!/usr/bin/env bash
+args="\$*"
+case "\$args" in
+  *"models auth list"*"--provider"*) echo '{"profiles":[]}' ;;
+  *"models auth list"*) echo '{"profiles":[]}' ;;
+  *) echo '{}' ;;
+esac
+MOCK
+  chmod +x "$MOCK_BIN/openclaw"
+  OHMYCLAW_PH_NO_RETRY=1 run "$SKILL_DIR/provider-health.sh" sync-auth-order --apply
+  [ "$status" -eq 0 ]
+  run wc -l < "$ORDER_LOG"
+  [ "${output// /}" -eq 0 ]
+}

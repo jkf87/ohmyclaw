@@ -4,6 +4,15 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.10.1] — 2026-07-10
+
+### Fixed — auth-order-sync 콜드스타트 no-op
+
+launchd 최초 실행(부팅/게이트웨이 재시작 직후) 시 openclaw `models auth list --json` 이 간헐적으로 빈 결과를 반환하여 sync 가 provider 를 하나도 못 찾고 조용히 no-op 되던 문제 수정. 라이브 검증에서 동일 launchd 환경인데 첫 실행만 empty, 이후 실행은 정상임을 확인(env 문제 아닌 콜드스타트 transient).
+
+- **`_provider_list` 재시도** — provider 목록이 비면 2s 쉬고 1회 재시도. 정상 케이스(목록 존재)는 재시도 없이 즉시 통과 → 기존 동작·성능 불변. `OHMYCLAW_PH_NO_RETRY=1` 로 끌 수 있음(테스트용).
+- **테스트** — auth-order-sync.bats +2 (콜드스타트 재시도 복구 / no-retry 플래그). bats **281 PASS / 0 FAIL**.
+
 ## [1.10.0] — 2026-07-10
 
 ### Added — 멀티계정 auth-order health sync (openclaw 네이티브 봇 경로)
