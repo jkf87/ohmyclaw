@@ -4,6 +4,20 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.10.0] — 2026-07-10
+
+### Added — 멀티계정 auth-order health sync (openclaw 네이티브 봇 경로)
+
+한 provider(openai)에 auth 프로파일이 2개(`openai:default`, `openai:jjoongoo@gmail.com`) 있고 openclaw 가 order override 없이 **라운드로빈**하여, 그중 하나가 만료되면 절반쯤 만료 프로파일에 걸려 "Model login expired" 경고가 반복되던 문제 해결. 봇들은 ohmyclaw 하네스를 경유하지 않고 openclaw 네이티브 라우팅을 쓰므로(모델 오버라이드 없음·ohmyclaw 스킬 미로드), select-model 게이트로는 못 막고 openclaw `models auth order` 를 직접 조정해야 함.
+
+- **`provider-health.sh sync-auth-order [--apply]`** — 프로파일별 라이브 health(`openclaw models status --probe`)를 보고 openclaw `models auth order` 를 **동적 조정**: 전부 정상→`clear`(라운드로빈 유지=멀티계정 부하분산), 일부 만료→`set <정상만>`(만료 제외), 전부 만료→재로그인 안내. **정적 pin 이 아니라 health 기반 자동 라우팅** — 재로그인으로 회복되면 다음 싱크에서 자동 `clear` 복귀. probe 결과 없으면(오프라인) 안전 skip.
+- **보조 서브커맨드** — `profiles <p>` / `probe-profiles <p>` / `agents-using <p>`.
+- **launchd 자동화** — `scripts/openclaw-auth-order-sync.sh` + `scripts/com.ohmyclaw.auth-order-sync.plist.template`(10분 주기 + 로드 시 1회), register-commands 와 동일 패턴. 로그는 profileId 만 기록(토큰 비노출).
+- **테스트** — auth-order-sync.bats +9 (PATH mock openclaw 로 clear/set/alert/dry-run/offline-skip/disable 결정 로직 검증). bats **279 PASS / 0 FAIL**. 라이브 openclaw dry-run 검증 완료(openai 2/2 정상→4개 agent clear 계획).
+- **문서** — docs/auth-order-sync.md, SKILL.md §6-6 보강.
+
+> 참고: v1.9.0 의 select-model 게이트/pool quarantine 은 ohmyclaw 하네스를 실제 쓰는 에이전트 경로용이고, 본 1.10.0 은 openclaw 네이티브 봇 경로(멀티 auth 프로파일 라운드로빈)용이다 — 두 경로를 각각 커버.
+
 ## [1.9.0] — 2026-07-10
 
 ### Fixed — 만료된 provider 로그인으로 반복 호출 (auth-expiry 게이트)

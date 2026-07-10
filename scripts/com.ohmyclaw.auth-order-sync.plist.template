@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ohmyclaw auth-order health sync LaunchAgent (macOS)
+
+  provider(openai 등) 프로파일이 여러 개일 때 openclaw 라운드로빈이 만료 프로파일에
+  걸려 "Model login expired" 경고가 반복되는 것을, 프로파일 health 기반으로 openclaw
+  auth order 를 동적 조정하여 방지한다(정상만 사용, 만료 제외, 회복 시 복귀).
+
+  설치:
+    HOME_DIR="$HOME"
+    sed "s|__HOME__|$HOME_DIR|g" scripts/com.ohmyclaw.auth-order-sync.plist.template \
+      > ~/Library/LaunchAgents/com.ohmyclaw.auth-order-sync.plist
+    cp scripts/openclaw-auth-order-sync.sh ~/.openclaw/ohmyclaw-auth-order-sync.sh
+    chmod +x ~/.openclaw/ohmyclaw-auth-order-sync.sh
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ohmyclaw.auth-order-sync.plist
+
+  제거:
+    launchctl bootout gui/$(id -u)/com.ohmyclaw.auth-order-sync
+
+  StartInterval 600 = 10분마다 + 로드/로그인 시 1회. (probe 는 live API 호출이라
+  register-commands(5분)보다 간격을 넓게 잡음 — 만료는 분 단위로 급변하지 않음.)
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ohmyclaw.auth-order-sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/.openclaw/ohmyclaw-auth-order-sync.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>600</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.openclaw/logs/ohmyclaw-auth-order-sync.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.openclaw/logs/ohmyclaw-auth-order-sync.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

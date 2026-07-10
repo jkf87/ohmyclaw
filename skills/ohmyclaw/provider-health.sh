@@ -285,6 +285,127 @@ action_scan_stderr() {
 }
 
 # ──────────────────────────────────────────────
+# Profile-level auth-order health sync (멀티계정 자동 라우팅)
+#   provider(openai 등) 안에 auth 프로파일이 여러 개일 때, openclaw 는 order
+#   override 가 없으면 라운드로빈으로 번갈아 쓴다 → 만료된 프로파일에 걸려
+#   "Model login expired" 경고가 반복된다. 이 루틴은 프로파일별 라이브 health 를
+#   보고 openclaw `models auth order` 를 동적으로 조정한다:
+#     - 전부 정상  → order 해제(clear) = 라운드로빈 유지(멀티계정 부하분산)
+#     - 일부 만료  → 정상 프로파일만 order set(만료 프로파일 제외)
+#     - 전부 만료  → 재로그인 안내만(손댈 수 없음)
+#   재로그인으로 회복되면 다음 싱크에서 자동으로 order 해제(복귀).
+#   openclaw 호출은 _oc 로 감싸 테스트 시 PATH mock 으로 대체 가능.
+# ──────────────────────────────────────────────
+_oc() { openclaw "$@"; }
+AGENTS_DIR="${OHMYCLAW_AGENTS_DIR:-$HOME/.openclaw/agents}"
+
+# provider 의 등록된 프로파일 id (전역, --provider 필터가 전체를 반환)
+action_profiles() {
+  local p="${1:?Usage: profiles <provider>}"
+  _oc models auth list --provider "$p" --json 2>/dev/null \
+    | jq -r '.profiles[]? | .id' 2>/dev/null || true
+}
+
+# provider 프로파일별 라이브 probe → "id<TAB>status"
+action_probe_profiles() {
+  local p="${1:?Usage: probe-profiles <provider>}"
+  _oc models status --probe --probe-provider "$p" --json 2>/dev/null \
+    | jq -r '.auth.probes.results[]? | "\(.profileId)\t\(.status)"' 2>/dev/null || true
+}
+
+_all_agents() {
+  if [[ -n "${OHMYCLAW_PH_AGENTS:-}" ]]; then
+    printf '%s\n' ${OHMYCLAW_PH_AGENTS//,/ }
+  else
+    ls -1 "$AGENTS_DIR" 2>/dev/null || true
+  fi
+}
+
+# provider 를 실제 쓰는 agent (auth.oauth.providers 에 존재)
+action_agents_using() {
+  local p="${1:?Usage: agents-using <provider>}" a
+  while read -r a; do
+    [[ -z "$a" ]] && continue
+    if _oc models status --agent "$a" --json 2>/dev/null \
+        | jq -e --arg p "$p" '[.auth.oauth.providers[]?|select(.provider==$p)]|length>0' >/dev/null 2>&1; then
+      echo "$a"
+    fi
+  done < <(_all_agents)
+}
+
+# oauth 이고 프로파일 ≥2 인 provider (재정렬 대상)
+_multi_profile_providers() {
+  local p n
+  _oc models auth list --json 2>/dev/null | jq -r '.profiles[]?.provider' 2>/dev/null | sort -u \
+  | while read -r p; do
+      [[ -z "$p" ]] && continue
+      n=$(action_profiles "$p" | grep -c . || true)
+      if (( n >= 2 )); then echo "$p"; fi
+    done
+}
+
+action_sync_auth_order() {
+  local apply=false only_provider=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --apply)    apply=true; shift ;;
+      --provider) shift; only_provider="${1:-}"; shift ;;
+      *)          shift ;;
+    esac
+  done
+  [[ "${OHMYCLAW_PROVIDER_HEALTH:-true}" != "true" ]] && { echo "[auth-order-sync] disabled (OHMYCLAW_PROVIDER_HEALTH=false)"; return 0; }
+
+  local providers
+  if [[ -n "$only_provider" ]]; then providers="$only_provider"; else providers=$(_multi_profile_providers); fi
+
+  local prov
+  for prov in $providers; do
+    [[ -z "$prov" ]] && continue
+    local allp n; allp=$(action_profiles "$prov"); n=$(printf '%s\n' "$allp" | grep -c . || true)
+    if (( n < 2 )); then continue; fi   # 단일 프로파일 → 재정렬 불필요
+
+    local probe healthy np nh
+    probe=$(action_probe_profiles "$prov")
+    np=$(printf '%s' "$probe" | grep -c . || true)
+    # probe 결과가 비면(오프라인/실패) 안전하게 skip — 잘못된 제외 방지
+    if (( np == 0 )); then
+      echo "[auth-order-sync] $prov: probe 결과 없음 → skip(안전)"; continue
+    fi
+    healthy=$(printf '%s\n' "$probe" | awk -F'\t' '$2=="ok" || $2=="static"{print $1}' | sort -u)
+    nh=$(printf '%s' "$healthy" | grep -c . || true)
+
+    local mode
+    if   (( nh == n )); then mode="clear"    # 전부 정상 → 라운드로빈 유지
+    elif (( nh > 0 ));  then mode="set"      # 일부 만료 → 정상만
+    else                     mode="alert"    # 전부 만료
+    fi
+
+    local agents; agents=$(action_agents_using "$prov")
+    [[ -z "$agents" ]] && { echo "[auth-order-sync] $prov: 사용하는 agent 없음 → skip"; continue; }
+
+    local a ids
+    ids=$(printf '%s ' $healthy)
+    while read -r a; do
+      [[ -z "$a" ]] && continue
+      case "$mode" in
+        clear)
+          if $apply; then _oc models auth order clear --provider "$prov" --agent "$a" >/dev/null 2>&1 || true; fi
+          echo "[auth-order-sync] ${a}/${prov}: all healthy(${nh}/${n}) → clear (round-robin)"
+          ;;
+        set)
+          if $apply; then _oc models auth order set --provider "$prov" --agent "$a" $ids >/dev/null 2>&1 || true; fi
+          echo "[auth-order-sync] ${a}/${prov}: ${nh}/${n} healthy → set [$(echo $ids)] (만료 제외)"
+          ;;
+        alert)
+          echo "[auth-order-sync] ${a}/${prov}: ALL ${n} profiles expired — 재로그인 필요: openclaw models auth login --provider ${prov} --force" >&2
+          ;;
+      esac
+    done <<< "$agents"
+  done
+  return 0
+}
+
+# ──────────────────────────────────────────────
 # dispatch
 # ──────────────────────────────────────────────
 case "${1:-}" in
@@ -298,6 +419,12 @@ case "${1:-}" in
   release)         shift; action_release "${1:-}" ;;
   is-quarantined)  shift; action_is_quarantined "${1:-}" ;;
   scan-stderr)     shift; action_scan_stderr "${1:-}" ;;
+
+  # profile-level auth-order health sync (멀티계정 자동 라우팅)
+  profiles)        shift; action_profiles "${1:-}" ;;
+  probe-profiles)  shift; action_probe_profiles "${1:-}" ;;
+  agents-using)    shift; action_agents_using "${1:-}" ;;
+  sync-auth-order) shift; action_sync_auth_order "$@" ;;
   *)
     cat <<EOF >&2
 Usage: $0 <action> [args...]
@@ -313,8 +440,15 @@ Usage: $0 <action> [args...]
   is-quarantined <provider>  exit 0 격리중 / 1 아님 (순수 read)
   scan-stderr [file]         stderr 에서 만료 시그니처 감지 → 자동 격리
 
+  profiles <provider>        provider 의 등록 프로파일 id 목록
+  probe-profiles <provider>  프로파일별 라이브 probe → "id<TAB>status"
+  agents-using <provider>    provider 를 쓰는 agent 목록
+  sync-auth-order [--apply] [--provider <p>]
+                             멀티계정: 프로파일 health 보고 openclaw auth order 동적
+                             조정(정상만 사용, 만료 제외, 회복 시 복귀). --apply 없으면 dry-run
+
 Env: OHMYCLAW_PROVIDER_HEALTH, OHMYCLAW_PH_TTL, OHMYCLAW_PH_NOTICE_WINDOW,
-     OHMYCLAW_PH_STATUS_CMD, OHMYCLAW_STATE_DIR
+     OHMYCLAW_PH_STATUS_CMD, OHMYCLAW_STATE_DIR, OHMYCLAW_AGENTS_DIR, OHMYCLAW_PH_AGENTS
 EOF
     exit 1
     ;;
