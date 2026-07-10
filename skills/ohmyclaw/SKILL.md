@@ -548,6 +548,14 @@ pool.sh quarantine openai auth_permanent # 수동 격리 (즉시 openai 라우�
 pool.sh release-provider openai          # 수동 해제
 ```
 
+**멀티계정 auth-order 동기화 (openclaw 네이티브 봇 경로)**: 한 provider 에 auth
+프로파일이 여러 개(예: `openai:default`, `openai:jjoongoo@gmail.com`)면 openclaw 는
+order override 가 없을 때 라운드로빈으로 번갈아 써서 만료 프로파일에 걸린다. ohmyclaw
+하네스를 안 쓰는 봇(openclaw 네이티브 라우팅)에서도 이를 막으려면
+`provider-health.sh sync-auth-order --apply` 가 프로파일 health 를 보고 openclaw
+`models auth order` 를 동적 조정한다(전부 정상=clear/라운드로빈, 일부 만료=정상만 set,
+회복 시 자동 복귀). launchd 로 주기 실행 권장 — 자세한 건 `docs/auth-order-sync.md`.
+
 ### 6-5. Fan-out 패턴 (대량 분산)
 
 같은 태스크를 여러 계정에 동시 발사:
