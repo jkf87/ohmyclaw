@@ -146,3 +146,40 @@ teardown() {
     [ "$remaining" -eq 0 ]
   fi
 }
+
+# ── auth-expiry provider quarantine ───────────────────────────────
+
+@test "quarantine zai blocks next glm with exit 3 (auth-specific)" {
+  pl quarantine zai auth_permanent >/dev/null 2>&1
+  run pl next glm-5
+  [ "$status" -eq 3 ]
+}
+
+@test "quarantine zai empties fanout (no eligible accounts)" {
+  pl quarantine zai >/dev/null 2>&1
+  run pl fanout zai
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "release-provider zai restores glm selection" {
+  pl quarantine zai >/dev/null 2>&1
+  pl release-provider zai >/dev/null 2>&1
+  run pl next glm-5
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^zai-primary\| ]]
+}
+
+@test "quarantine codex alias normalizes to openai provider" {
+  pl quarantine codex >/dev/null 2>&1
+  # codex 별칭이 openai 로 정규화 → provider-health 가 openai 격리 인지
+  run "$SKILL_DIR/provider-health.sh" is-quarantined openai
+  [ "$status" -eq 0 ]
+}
+
+@test "healthy pool unaffected by another pool's quarantine" {
+  pl quarantine codex >/dev/null 2>&1
+  run pl next glm-5
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^zai-primary\| ]]
+}

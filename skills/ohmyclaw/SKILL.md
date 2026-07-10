@@ -285,6 +285,8 @@ export CODEX_OAUTH_ENABLED=true
 | 401 Unauthorized 간헐 | `codex login` 재실행 (refresh token 30일) |
 | `No subscription found` | Free 계정. Plus/Pro 결제 후 재시도 |
 | Rate limit 초과 | § 6 멀티 계정 풀 사용 |
+| `Model login expired on the gateway for <p>` 반복 | 게이트웨이 provider 로그인 만료. `openclaw models auth login --provider <p> --force` 후 자동 복구. provider-health 게이트가 만료 provider 를 자동으로 건너뛴다 (§ 6-6). 즉시 격리: `pool.sh quarantine <p>` |
+| `Model Fallback: ... auth permanent` 스팸 | 위와 동일 — 만료 provider 로 반복 호출 중. 재로그인하면 멈춘다 |
 
 ### 5-4. Experimental Claude Code CLI delegation (opt-in)
 
@@ -449,6 +451,10 @@ state 파일: `${OHMYCLAW_STATE_DIR:-~/.cache/ohmyclaw}/pool-state.json`
 SKILL=skills/ohmyclaw
 
 # 1. 모델 선택
+#    (자동) provider-health 게이트: openclaw `models status --json` 로 openai/zai/
+#    claude-cli 로그인 만료를 사전 감지해, 만료 provider 의 모델은 폴백 체인의 첫
+#    정상 모델로 강등한다. OHMYCLAW_PROVIDER_HEALTH=false 로 끌 수 있고, openclaw
+#    부재 시 무해(no-op). 강등이 일어나면 --json 출력의 .providerHealthGate 에 기록.
 MODEL=$($SKILL/select-model.sh "$TASK" auto --plan=$PLAN ${CODEX:+--codex})
 
 # 2. 해당 모델의 계정 픽
@@ -478,9 +484,11 @@ SLOT=$($SKILL/pool.sh acquire-worker | sed -n 's/^TOKEN=//p')
 [[ -z "$SLOT" ]] && { echo "[ohmyclaw] 워커 슬롯 만석 — 잠시 후 재시도"; exit 11; }
 
 # 6. 템플릿 치환({{CWD}}/{{TASK}}) 후 실행 — printf %q 로 셸 안전 인용 (인젝션 방지)
+#    stderr 를 캡처해 두면 8b 의 auth-expiry 반응형 감지에 쓸 수 있다.
 CMD=${CMD_TMPL//\{\{CWD\}\}/$(printf %q "$PROJECT")}
 CMD=${CMD//\{\{TASK\}\}/$(printf %q "$TASK")}
-bash pty:true command:"$CMD" &
+ERRLOG=$(mktemp)
+bash pty:true command:"$CMD" 2>"$ERRLOG" &
 CHILD_PID=$!
 echo "$CHILD_PID" > "$SLOT"     # PID 추적 (sweep 이 dead 시 회수)
 wait "$CHILD_PID"; STATUS=$?
@@ -494,6 +502,14 @@ if [[ $STATUS -ne 0 ]]; then
   ACCOUNT_LINE=$($SKILL/pool.sh next "$MODEL")
   # ... 재시도
 fi
+
+# 8b. auth-expiry 반응형 감지 (중요): openclaw 게이트웨이는 provider 로그인이
+#     만료돼도 스스로 zai/glm 으로 폴백하고 exit 0 을 리턴한다 → STATUS 로는 감지
+#     불가. stderr 의 "Model login expired.../auth permanent" 시그니처를 스캔해
+#     해당 provider 를 격리하면, 다음 select/next 부터 그 provider 를 건너뛴다.
+#     (재로그인 후 라이브 status=ok 감지 시 자동 해제)
+$SKILL/provider-health.sh scan-stderr "$ERRLOG" || true
+rm -f "$ERRLOG"
 ```
 
 ### 6-4. Round-robin / Cooldown 동작
@@ -502,6 +518,35 @@ fi
 - **Cooldown**: 실패 시 `consecutiveFailures` 증가, 백오프 = `min(base × multiplier^(failures-1), maxCooldown)`. 기본: 60s → 120s → 240s → 480s → 600s (cap).
 - **자동 해제**: cooldown 만료 시 자동으로 다시 후보. 명시 해제는 `release`.
 - **빈 풀**: 모든 enabled 계정이 cooldown 이거나 enabled=false 면 `next` 가 에러.
+
+### 6-6. Auth-expiry 게이트 (rate-limit cooldown 과 별개)
+
+멀티계정 사용 중 특정 provider(openai/zai/claude-cli)의 **게이트웨이 OAuth 로그인이
+만료**되면, openclaw 게이트웨이는 스스로 zai/glm 으로 폴백하며 **exit 0(성공)** 을
+리턴한다. 그래서 exit code 기반 cooldown 은 발동하지 않고, 아무 처리도 안 하면
+라운드로빈이 만료 provider 를 계속 되돌려줘 `Model login expired ...` 경고가 무한
+반복된다. rate-limit(일시적, 지수 백오프)과 auth-expiry(반영구적, 재로그인 필요)는
+성격이 다르므로 **별도 격리(quarantine)** 로 다룬다. 담당: `provider-health.sh`.
+
+- **사전 게이트(proactive)**: `select-model.sh` 가 매 선택 시 `openclaw models
+  status --json` 을 TTL 캐시(기본 45s)로 조회해, 만료(`expired`/`missing`) 또는
+  격리된 provider 의 모델을 **폴백 체인의 첫 정상 모델로 강등**한다. (예:
+  openai 만료 → `gpt-5.5` → `glm-5.2`)
+- **사후 감지(reactive)**: `provider-health.sh scan-stderr` 가 엔진 stderr 의
+  `login expired` / `auth permanent` 시그니처에서 provider 를 추출해 격리한다
+  (§ 6-3 recipe 8b). exit 0 폴백에도 안전.
+- **격리(quarantine)**: `pool.sh quarantine <provider|pool> [reason]` — 계정
+  단위 cooldown 과 달리 **provider 단위**, 600s cap 없이 재로그인까지 유지.
+  격리된 pool 의 `next` 는 exit 3 + 재로그인 안내를 낸다.
+- **자동 복구**: 재로그인 후 라이브 `status=ok/static` 이 감지되면 격리를 자동
+  해제(reconcile). 수동 해제는 `pool.sh release-provider <provider>`.
+- **끄기**: `OHMYCLAW_PROVIDER_HEALTH=false`. openclaw 부재 시 무해(no-op).
+
+```bash
+provider-health.sh status               # provider 별 health + 격리 목록
+pool.sh quarantine openai auth_permanent # 수동 격리 (즉시 openai 라우팅 차단)
+pool.sh release-provider openai          # 수동 해제
+```
 
 ### 6-5. Fan-out 패턴 (대량 분산)
 

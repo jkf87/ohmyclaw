@@ -108,6 +108,7 @@ fi
 # 실행 + 실패 시 pool cooldown 마킹 (--from-pool 일 때만)
 # ──────────────────────────────────────────────
 set +e
+STDERR_TMP=$(mktemp -t ohmyclaw-delegate-err.XXXXXX)
 (
   cd "$CWD"
   if [[ -n "$CONFIG_DIR" ]]; then
@@ -115,10 +116,19 @@ set +e
   else
     "${CMD[@]}"
   fi
-)
+) 2>"$STDERR_TMP"
 EXIT_CODE=$?
 set -e
+cat "$STDERR_TMP" >&2   # stderr 원본 재출력 (버퍼링 — 스캔 결정성 확보)
 
+# 반응형 auth-expiry 감지: 게이트웨이는 만료 시 폴백 후 exit 0 을 리턴하므로
+# exit code 로는 감지 불가 → stderr 텍스트에서 만료 시그니처를 스캔해 provider 격리.
+if [[ -x "$SCRIPT_DIR/provider-health.sh" ]]; then
+  "$SCRIPT_DIR/provider-health.sh" scan-stderr "$STDERR_TMP" || true
+fi
+rm -f "$STDERR_TMP"
+
+# 기존: 프로세스가 실제로 실패(exit≠0)한 경우엔 계정 rate-limit cooldown
 if [[ $EXIT_CODE -ne 0 && -n "$PICKED_ACCOUNT_ID" ]]; then
   echo "claude-delegate: exit=$EXIT_CODE → pool cooldown for $PICKED_ACCOUNT_ID" >&2
   "$SCRIPT_DIR/pool.sh" cooldown "$PICKED_ACCOUNT_ID" >/dev/null 2>&1 || true

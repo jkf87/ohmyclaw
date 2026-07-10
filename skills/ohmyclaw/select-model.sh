@@ -345,6 +345,27 @@ FALLBACK="${PICKED},${CHAIN}"
 FALLBACK=$(echo "$FALLBACK" | tr ',' '\n' | awk '!seen[$0]++' | tr '\n' ',' | sed 's/,$//')
 
 # ──────────────────────────────────────────────
+# Provider-health gate (auth-expiry aware)
+#   openclaw 게이트웨이의 provider OAuth 만료를 사전 감지하여, 만료된 provider 의
+#   모델을 폴백 체인에서 건너뛰고 첫 정상 모델로 강등한다.
+#   (rate-limit cooldown 과 별개 — 반영구적 재로그인 필요 상태)
+#   OHMYCLAW_PROVIDER_HEALTH=false 로 비활성화. openclaw 부재 시 무해(no-op).
+# ──────────────────────────────────────────────
+PH_GATE_FROM=""; PH_GATE_TO=""; PH_GATE_PROVIDER=""; PH_GATE_STATUS=""
+if [[ "${OHMYCLAW_PROVIDER_HEALTH:-true}" == "true" && -x "$SCRIPT_DIR/provider-health.sh" ]]; then
+  HEALTHY_PICK=$("$SCRIPT_DIR/provider-health.sh" first-healthy "$FALLBACK" 2>/dev/null || echo "")
+  if [[ -n "$HEALTHY_PICK" && "$HEALTHY_PICK" != "$PICKED" ]]; then
+    PH_GATE_FROM="$PICKED"
+    PH_GATE_TO="$HEALTHY_PICK"
+    PH_GATE_PROVIDER=$("$SCRIPT_DIR/provider-health.sh" provider-of "$PICKED" 2>/dev/null || echo "")
+    PH_GATE_STATUS=$("$SCRIPT_DIR/provider-health.sh" why "$PICKED" 2>/dev/null || echo "unhealthy")
+    REASON="${REASON} → provider_health_gate(${PH_GATE_STATUS}): ${PICKED}→${HEALTHY_PICK}"
+    PICKED="$HEALTHY_PICK"
+    FALLBACK=$(echo "${PICKED},${FALLBACK}" | tr ',' '\n' | awk '!seen[$0]++' | tr '\n' ',' | sed 's/,$//')
+  fi
+fi
+
+# ──────────────────────────────────────────────
 # Output
 # ──────────────────────────────────────────────
 if [[ "$OUTPUT_JSON" == "true" ]]; then
@@ -363,6 +384,10 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
     --arg or_model_override "$OPENROUTER_MODEL_OVERRIDE" \
     --arg reason "$REASON" \
     --arg fallback "$FALLBACK" \
+    --arg ph_from "$PH_GATE_FROM" \
+    --arg ph_to "$PH_GATE_TO" \
+    --arg ph_provider "$PH_GATE_PROVIDER" \
+    --arg ph_status "$PH_GATE_STATUS" \
     '{
       model: $model,
       category: $category,
@@ -376,7 +401,8 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
       openrouterPreferFree: ($prefer_free == "true"),
       openrouterModelOverride: (if $or_model_override == "" then null else $or_model_override end),
       reason: $reason,
-      fallbackChain: ($fallback | split(","))
+      fallbackChain: ($fallback | split(",")),
+      providerHealthGate: (if $ph_from == "" then null else {from:$ph_from, to:$ph_to, provider:$ph_provider, status:$ph_status} end)
     }'
 else
   echo "$PICKED"

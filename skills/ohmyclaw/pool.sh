@@ -22,6 +22,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROUTING_FILE="${SCRIPT_DIR}/routing.json"
+PH_SH="${SCRIPT_DIR}/provider-health.sh"   # auth-expiry quarantine (별개: rate-limit cooldown 아님)
 STATE_DIR="${OHMYCLAW_STATE_DIR:-$HOME/.cache/ohmyclaw}"
 STATE_FILE="${STATE_DIR}/pool-state.json"
 
@@ -97,6 +98,26 @@ pool_for_model() {
   esac
 }
 
+# 풀 ID → openclaw provider 이름 (models status / auth-quarantine 기준)
+#   routing.json 의 providerId 와 다름 주의 (codex→"openai-codex" 이지만 게이트웨이는 "openai")
+pool_provider() {
+  case "$1" in
+    zai)        echo "zai" ;;
+    codex)      echo "openai" ;;
+    claudecli)  echo "claude-cli" ;;
+    openrouter) echo "openrouter" ;;
+    *)          echo "" ;;
+  esac
+}
+
+# 풀의 provider 가 auth 만료로 격리되었는가? (순수 파일 read — 라이브 폴링 없음, offline-safe)
+pool_provider_quarantined() {
+  local pool="$1" provider
+  provider=$(pool_provider "$pool")
+  [[ -z "$provider" || ! -x "$PH_SH" ]] && return 1
+  "$PH_SH" is-quarantined "$provider" >/dev/null 2>&1
+}
+
 # ──────────────────────────────────────────────
 # 풀의 enabled 계정 목록 (cooldown 해제된 것만)
 # 출력: id|authType|authValue|plan|weight  (한 줄 한 계정)
@@ -104,6 +125,11 @@ pool_for_model() {
 get_eligible_accounts() {
   local pool="$1" current_time
   current_time=$(now)
+
+  # provider auth 만료 격리 시 → 자격 계정 없음 (라운드로빈이 만료 provider 를 되돌려주는 것 차단)
+  if pool_provider_quarantined "$pool"; then
+    return 0
+  fi
 
   jq -r --arg pool "$pool" --arg now "$current_time" --slurpfile state "$STATE_FILE" '
     .accounts.pools[$pool].accounts[]?
@@ -157,6 +183,16 @@ action_next() {
   local accounts
   accounts=$(get_eligible_accounts "$pool")
   if [[ -z "$accounts" ]]; then
+    # auth 만료 격리로 인한 빈 목록이면 재로그인 안내 (rate-limit/enabled 문제와 구분)
+    if pool_provider_quarantined "$pool"; then
+      local provider reason
+      provider=$(pool_provider "$pool")
+      reason=$("$PH_SH" why "$provider" 2>/dev/null || echo "auth expired")
+      echo "ERROR: pool '$pool' provider '$provider' quarantined ($reason)." >&2
+      echo "       Re-auth: openclaw models auth login --provider $provider --force" >&2
+      echo "       (재로그인 후 라이브 status=ok 감지 시 자동 해제, 또는 pool.sh release-provider $provider)" >&2
+      exit 3
+    fi
     echo "ERROR: no eligible accounts in pool '$pool' (cooldown 또는 enabled=false)" >&2
     exit 1
   fi
@@ -271,6 +307,28 @@ action_release() {
     | .[$p][$id].consecutiveFailures = 0
   ' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
   echo "[pool] released $id ($pool)" >&2
+}
+
+# ──────────────────────────────────────────────
+# quarantine / release-provider: auth-expiry 격리 (provider 단위, 재로그인까지)
+#   rate-limit cooldown(계정 단위, 지수 백오프)과 별개.
+#   실제 저장소는 provider-health.json (단일 소스). 여기선 pool/provider 별칭을
+#   provider 이름으로 정규화해 provider-health.sh 로 위임한다.
+# ──────────────────────────────────────────────
+action_quarantine() {
+  local arg="${1:-}" reason="${2:-auth_expired}"
+  if [[ -z "$arg" ]]; then echo "Usage: $0 quarantine <provider|pool> [reason]" >&2; exit 1; fi
+  if [[ ! -x "$PH_SH" ]]; then echo "ERROR: provider-health.sh not found at $PH_SH" >&2; exit 1; fi
+  local provider; provider=$(pool_provider "$arg"); [[ -z "$provider" ]] && provider="$arg"
+  "$PH_SH" quarantine "$provider" "$reason"
+}
+
+action_release_provider() {
+  local arg="${1:-}"
+  if [[ -z "$arg" ]]; then echo "Usage: $0 release-provider <provider|pool>" >&2; exit 1; fi
+  if [[ ! -x "$PH_SH" ]]; then echo "ERROR: provider-health.sh not found at $PH_SH" >&2; exit 1; fi
+  local provider; provider=$(pool_provider "$arg"); [[ -z "$provider" ]] && provider="$arg"
+  "$PH_SH" release "$provider"
 }
 
 # ──────────────────────────────────────────────
@@ -416,6 +474,10 @@ case "${1:-}" in
   release)  shift; with_state_lock action_release  "${1:-}" ;;
   reset)    with_state_lock action_reset ;;
 
+  # auth-expiry 격리 (provider 단위) — provider-health.sh 로 위임(자체 락)
+  quarantine)       shift; action_quarantine "$@" ;;
+  release-provider) shift; action_release_provider "$@" ;;
+
   # worker semaphore (P5/F2/F5) — maxWorkers 강제 + PID 추적
   acquire-worker) shift; with_state_lock action_acquire_worker "$@" ;;
   release-worker) shift; with_state_lock action_release_worker "$@" ;;
@@ -432,8 +494,10 @@ Usage: $0 <action> [args...]
 Account pool actions:
   next <model>          Round-robin 픽 → "id|authType|authValue|plan|weight"
   fanout <providerId>   풀의 enabled 계정 전부 출력
-  cooldown <id>         계정 cooldown 마킹 (rate limit 히트 시)
+  cooldown <id>         계정 cooldown 마킹 (rate limit 히트 시, 지수 백오프)
   release <id>          cooldown 해제
+  quarantine <provider|pool> [reason]  auth 만료 격리 (재로그인까지, provider 단위)
+  release-provider <provider|pool>     auth 격리 해제
   status [providerId]   풀 상태 + cooldown 잔여 시간
   reset                 state 전체 리셋
 
