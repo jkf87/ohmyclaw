@@ -39,3 +39,7 @@ eg() { "$SKILL_DIR/engine.sh" "$@"; }
 
 # pool.sh 단축
 pl() { "$SKILL_DIR/pool.sh" "$@"; }
+
+# provider-health.sh 단축 (ph_out 은 stderr 억제 — stdout 만 assert 할 때)
+ph()     { "$SKILL_DIR/provider-health.sh" "$@"; }
+ph_out() { "$SKILL_DIR/provider-health.sh" "$@" 2>/dev/null; }

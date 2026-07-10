@@ -4,6 +4,20 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.9.0] — 2026-07-10
+
+### Fixed — 만료된 provider 로그인으로 반복 호출 (auth-expiry 게이트)
+
+멀티계정 연결 시, 특정 provider(openai 등)의 **게이트웨이 OAuth 로그인이 만료**되면 openclaw 가 스스로 zai/glm 으로 폴백하며 **exit 0(성공)** 을 리턴한다. 그래서 ohmyclaw 의 exit-code 기반 cooldown 은 발동하지 않았고, 계정 풀 자격 판정에 auth-만료 개념이 없어 라운드로빈이 만료 provider 를 계속 되돌려주며 `Model login expired on the gateway for openai ...` / `Model Fallback: ... auth permanent` 경고가 무한 반복되던 문제 수정.
+
+- **`provider-health.sh` (신규)** — openclaw `models status --json` 의 provider별 status(`ok|expiring|expired|missing|static`)를 근거로 만료/누락 provider 를 파악하는 auth-health 게이트. TTL 캐시(기본 45s), openclaw 부재 시 무해(no-op). 서브커맨드: `refresh/status/check/first-healthy/why/provider-of/quarantine/release/is-quarantined/scan-stderr`.
+- **`select-model.sh` — 사전 게이트(proactive)** — 폴백 체인에서 만료 provider 의 모델을 **첫 정상 모델로 강등**(예: openai 만료 시 `gpt-5.5`→`glm-5.2`). `--json` 출력에 `.providerHealthGate` 추가. `OHMYCLAW_PROVIDER_HEALTH=false` 로 비활성.
+- **`claude-delegate.sh` + SKILL.md §6-3 recipe 8b — 사후 감지(reactive)** — 엔진 stderr 의 `login expired`/`auth permanent` 시그니처를 스캔해 provider 격리(exit 0 폴백에도 안전).
+- **`pool.sh` — provider 단위 격리** — `quarantine <provider|pool> [reason]` / `release-provider` 추가. 계정 cooldown(600s cap)과 달리 재로그인까지 유지. 격리된 pool 의 `next` 는 exit 3 + 재로그인 안내. `get_eligible_accounts` 가 격리 provider 를 건너뜀. 재로그인 후 라이브 status=ok 감지 시 **자동 해제**(reconcile).
+- **재로그인 안내 dedup** — 만료 감지 시 `openclaw models auth login --provider <p> --force` 안내를 provider당 창(기본 1h) 1회만 발화.
+- **테스트** — provider-health.bats +16, pool.bats +5(격리), select-model.bats +3(게이트) & 실기기 openclaw 의존 제거(게이트 기본 off + 격리 상태). bats **270 PASS / 0 FAIL**.
+- **문서** — SKILL.md §6-6(auth-expiry 게이트) + 트러블슈팅 2행.
+
 ## [1.8.0] — 2026-06-26
 
 ### Added — 비동기 인터뷰 상태머신 (실제 버튼 클릭 동작)

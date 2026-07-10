@@ -5,6 +5,14 @@ load helpers
 
 setup() {
   unset CODEX_OAUTH_ENABLED OPENROUTER_ENABLED OPENROUTER_PREFER_FREE ZAI_CODING_PLAN
+  setup_isolated_state
+  # 기존 라우팅 테스트는 실기기 openclaw auth 상태에 의존하지 않도록 게이트 off.
+  # provider-health 게이트 테스트만 명시적으로 재활성화한다.
+  export OHMYCLAW_PROVIDER_HEALTH=false
+}
+teardown() {
+  teardown_isolated_state
+  unset OHMYCLAW_PROVIDER_HEALTH OHMYCLAW_PH_STATUS_CMD
 }
 
 @test "P0 default coding_general pro low -> glm-5" {
@@ -160,4 +168,40 @@ setup() {
 @test "matrix HIGH coding/reasoning routes to glm-5.2 (pro+max)" {
   run jq -e '.matrix.pro.coding_arch.HIGH=="glm-5.2" and .matrix.pro.coding_general.HIGH=="glm-5.2" and .matrix.pro.reasoning.HIGH=="glm-5.2" and .matrix.max.coding_arch.HIGH=="glm-5.2" and .matrix.max.reasoning.HIGH=="glm-5.2"' "$SKILL_DIR/routing.json"
   [ "$status" -eq 0 ]
+}
+
+# ── provider-health gate (auth-expiry aware) ──────────────────────
+# openai(codex) 로그인 만료 시 gpt-5.x 픽을 폴백 체인의 첫 정상 glm 으로 강등.
+
+_write_status() {  # $1=openai status
+  local sj="${OHMYCLAW_STATE_DIR}/status.json"
+  cat > "$sj" <<JSON
+{"auth":{"oauth":{"providers":[{"provider":"openai","status":"$1"},{"provider":"zai","status":"static"}]}}}
+JSON
+  export OHMYCLAW_PROVIDER_HEALTH=true
+  export OHMYCLAW_PH_STATUS_CMD="cat $sj"
+}
+
+@test "provider-health gate demotes gpt→glm when openai expired" {
+  _write_status expired
+  export CODEX_OAUTH_ENABLED=true
+  run bash -c "'$SKILL_DIR/select-model.sh' '분산 합의 정합성 증명 algorithm invariant' reasoning --plan=pro --codex 2>/dev/null"
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^glm- ]]
+}
+
+@test "no gate when openai healthy — codex pick stands" {
+  _write_status ok
+  export CODEX_OAUTH_ENABLED=true
+  run bash -c "'$SKILL_DIR/select-model.sh' '분산 합의 정합성 증명 algorithm invariant' reasoning --plan=pro --codex 2>/dev/null"
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^gpt-5 ]]
+}
+
+@test "gate surfaces providerHealthGate in --json output" {
+  _write_status expired
+  export CODEX_OAUTH_ENABLED=true
+  run bash -c "'$SKILL_DIR/select-model.sh' '분산 합의 정합성 증명 algorithm invariant' reasoning --plan=pro --codex --json 2>/dev/null"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providerHealthGate.provider=="openai" and (.providerHealthGate.from|startswith("gpt-")) and (.providerHealthGate.to|startswith("glm-"))'
 }
