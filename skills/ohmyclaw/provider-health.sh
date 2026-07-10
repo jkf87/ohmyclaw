@@ -336,8 +336,9 @@ action_agents_using() {
 # 등록된 provider 목록 (콜드스타트 대비 1회 재시도 — launchd 첫 실행 시 openclaw 가
 # 빈 결과를 반환하는 경우가 있어, 비면 잠깐 쉬고 다시 시도한다)
 _provider_list() {
-  local raw try
-  for try in 1 2; do
+  local raw="" attempts=0
+  while (( attempts < 2 )); do
+    attempts=$(( attempts + 1 ))
     raw=$(_oc models auth list --json 2>/dev/null | jq -r '.profiles[]?.provider' 2>/dev/null | sort -u)
     [[ -n "$raw" ]] && { printf '%s\n' "$raw"; return 0; }
     [[ "${OHMYCLAW_PH_NO_RETRY:-}" == "1" ]] && break   # 테스트용: 재시도 끄기
