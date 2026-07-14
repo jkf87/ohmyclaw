@@ -109,6 +109,7 @@ Models   glm-5-turbo, glm-5, glm-5.1, +OpenRouter 200+
 | **GLM-5** | — | 86.0 | 84.0 | — | Lite / Pro / Max |
 | **GLM-5.1** | **58.4** (1위) | 86.2 | 95.3 | ⚡ 지원 | Pro / Max |
 | **GLM-5.2** 🆕 | TBD (차세대) | TBD | TBD | ⚡ 지원 | Pro / Max |
+| **GPT-5.6 Sol/Terra/Luna** 🆕 | TBD | TBD | TBD | ⚡ ultra/max | ChatGPT 구독 (OAuth) |
 | **GPT-5.4** | 57.7 | **92.8** | **100** | ⚡ 지원 | ChatGPT 구독 (OAuth) |
 | **OpenRouter** | 다양 | 다양 | 다양 | 모델별 | API 키 (무료+유료) |
 
@@ -748,6 +749,98 @@ skills/ohmyclaw/
     ├── team-orchestrator.md, team-executor.md
     └── README.md
 ```
+## Goal-Loop (v1.13.0) — LazyCodex ulw-loop 파쿠리
+
+GPT-5.6 고 effort(xhigh/ultra)에서 발생하는 무한 루프를 **목표 완료 기반**으로 방지. 같은 결과 반복 차단이 아니라, 목표가 완료되면 자연 종료.
+
+```bash
+goal-loop.sh init "- 사용자 인증 구현
+- DB 마이그레이션"       # brief → goals + success criteria 자동 생성
+goal-loop.sh next                      # 미완료 goal instruction
+goal-loop.sh evidence --goal-id G001 --criterion-id C001 --status pass --evidence "로그인 성공"
+goal-loop.sh checkpoint --goal-id G001 --status complete --evidence "done"
+goal-loop.sh is-done                   # exit 0=done, 1=not done
+```
+
+### 루프 방어 3층 구조
+
+```
+1. goal-loop.sh     "작업이 끝났는가?" → proactive 자연 종료 (v1.13.0)
+2. deduper hook     "같은 결과가 반복?" → reactive 안전망 maxSame=50 (v1.12.0)
+3. routing.json     모델 선택 + tier timeout + loopGuard config (v1.11.0)
+```
+
+---
+
+## English
+
+# 🦞 ohmyclaw — English
+
+> Multi-provider, multi-account agent harness skill for OpenClaw
+
+Routes across Z.ai Coding Plan (Lite/Pro/Max) + ChatGPT Codex OAuth + OpenRouter (200+ models) through a single skill, with OMX-style composable verbs.
+
+### Key Features
+
+- **Multi-provider routing** — Z.ai GLM (5-Turbo/5/5.1/5.2), OpenAI GPT-5.6 (Sol/Terra/Luna) & GPT-5.4/5.5, OpenRouter 200+ models
+- **Task-aware model selection** — Complexity × Category 2D matrix + plan-aware routing with automatic downgrade
+- **GPT-5.6 support** (v1.11.0+) — Sol (frontier/ultra), Terra (frontier-reasoning/ultra), Luna (frontier-fast/max)
+- **Goal-loop completion** (v1.13.0) — Goal/evidence/criteria-based completion tracking (ported from LazyCodex ulw-loop)
+- **Loop guard** (v1.12.0) — Result-aware tool-call dedup pipeline (routing.json → Codex hook, maxSame=50)
+- **Multi-agent orchestration** — `/ohmyclaw team`, `/ohmyclaw ralph`, `/ohmyclaw plan --consensus`
+- **Socratic interview** — 4-dimension clarity gate (goal/constraint/success/context)
+- **Auth-expiry aware** — Provider health gate with quarantine/recovery
+
+### Install
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/jkf87/ohmyclaw/main/install.sh)
+```
+
+### Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/ohmyclaw` | HUD dashboard |
+| `/ohmyclaw route <task>` | Model routing for task |
+| `/ohmyclaw exec <task>` | Autonomous execution (ambiguity gate) |
+| `/ohmyclaw plan <task>` | Planning (consensus mode available) |
+| `/ohmyclaw review` | 5-perspective review + gap detection |
+| `/ohmyclaw team N <task>` | Parallel workers |
+| `/ohmyclaw ralph <task>` | Loop until pass (executor+verifier) |
+| `/ohmyclaw debug <task>` | 4-step RCA debugging |
+| `/ohmyclaw interview [topic]` | Socratic 4-dimension clarification |
+
+### Supported Models
+
+| Model | Coding | Reasoning | Extended Thinking | Plan |
+|-------|--------|-----------|-------------------|------|
+| GLM-5.1 | 95 | 95 | ⚡ | Pro / Max |
+| GLM-5.2 | 97 | 96 | ⚡ | Pro / Max |
+| GPT-5.6 Sol/Terra/Luna | frontier | frontier | ⚡ ultra/max | OAuth |
+| GPT-5.4/5.5 | legacy | legacy | ⚡ | OAuth |
+| OpenRouter 200+ | varies | varies | varies | API key |
+
+### Architecture
+
+```
+User request → select-model.sh (routing.json) → engine.sh (acpx/CLI) → Codex/omp/pi
+                    ↓                                ↓
+              model + account              goal-loop.sh (completion tracking)
+              + loop guard config          deduper hook (result-aware guard)
+```
+
+### Versions
+
+| Version | Highlights |
+|---------|-----------|
+| v1.13.0 | goal-loop.sh — LazyCodex ulw-loop port (goal/evidence/criteria) |
+| v1.12.0 | Result-aware loop guard pipeline (maxSame=50) |
+| v1.11.0 | GPT-5.6 series + OpenClaw 2026.7.1 compat |
+| v1.10.0 | Multi-account auth-order health sync |
+| v1.9.0 | Auth-expiry provider health gate |
+| v1.7.0 | GLM-5.2 routing support |
+
 
 ## License
 
