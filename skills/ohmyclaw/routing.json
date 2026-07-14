@@ -35,8 +35,14 @@
     "acpxFlags": {
       "format": "text",
       "ttl": 300,
-      "timeoutSeconds": 300,
-      "comment": "공통 acpx 기본 플래그. timeout 은 reasoning 모델(glm-5.1/gpt-5.6) extended thinking 대비 300s (SKILL.md §11 권장값과 일치)."
+      "timeoutSeconds": 600,
+      "comment": "공통 acpx 기본 플래그. timeout 은 GPT-5.6 ultra/xhigh extended thinking 대비 600s. glm-* 단독 사용 시 engine.sh 가 300s 로 단축 가능 (modelTierTimeout)."
+    },
+    "modelTierTimeout": {
+      "comment": "모델 tier별 acpx timeout override. engine.sh 가 selected model 의 tier 를 조회해 적용.",
+      "LOW": 120,
+      "MEDIUM": 300,
+      "HIGH": 600
     },
     "fallbackComment": "engine.sh 가 providerEngines[provider] 순서대로 command -v 확인. 첫 사용가능 엔진 선택. omp 부재 시 acpx 내장 어댑터로 강등."
   },
@@ -103,7 +109,9 @@
       "reasoningEffort": "ultra",
       "auth": "oauth_codex",
       "plans": ["oauth"],
-      "note": "OMX DEFAULT_FRONTIER_MODEL (OpenClaw 2026.7.1 신규 설치 기본값). 점수표 없음 — frontier role 라벨로 슬롯 결정. codex_oauth_enabled=true 일 때 활성."
+      "note": "OMX DEFAULT_FRONTIER_MODEL (OpenClaw 2026.7.1 신규 설치 기본값). 점수표 없음 — frontier role 라벨로 슬롯 결정. codex_oauth_enabled=true 일 때 활성.",
+      "loopRisk": "high",
+      "loopGuard": "tool-call-deduper (#27759) + max_turns=30. compaction token limit 120K 권장."
     },
     "gpt-5.6-terra": {
       "displayName": "GPT-5.6 Terra",
@@ -113,7 +121,9 @@
       "reasoningEffort": "ultra",
       "auth": "oauth_codex",
       "plans": ["oauth"],
-      "note": "GPT-5.6 Ultra 사고 변형 — 추론/수학/보안 최난도 전용. reasoning_heavy HIGH 시 gpt-5.6-sol 대신 우선."
+      "note": "GPT-5.6 Ultra 사고 변형 — 추론/수학/보안 최난도 전용. reasoning_heavy HIGH 시 gpt-5.6-sol 대신 우선.",
+      "loopRisk": "critical",
+      "loopGuard": "tool-call-deduper (#27759) + max_turns=20. 사용량 소진 위험 최고 (#32606). 가능하면 sol 우선."
     },
     "gpt-5.6-luna": {
       "displayName": "GPT-5.6 Luna",
@@ -123,7 +133,9 @@
       "reasoningEffort": "max",
       "auth": "oauth_codex",
       "plans": ["oauth"],
-      "note": "GPT-5.6 경량 변형 (max 사고). latency 민감한 HIGH 작업용. gpt-5.6-sol 보다 빠르나 추론 깊이는 얕음."
+      "note": "GPT-5.6 경량 변형 (max 사고). latency 민감한 HIGH 작업용. gpt-5.6-sol 보다 빠르나 추론 깊이는 얕음.",
+      "loopRisk": "medium",
+      "loopGuard": "tool-call-deduper (#27759) 적용. luna는 max 사고라 루프 위험이 sol/terra 대비 낮음."
     },
     "gpt-5.5": {
       "displayName": "GPT-5.5 (legacy)",

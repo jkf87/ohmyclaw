@@ -111,10 +111,16 @@ cmd_resolve() {
       | join(" ")' "$ROUTING_FILE")
   fi
 
-  # 공통 acpx 플래그
-  local fmt timeout perm
+  # 공통 acpx 플래그 — tier별 timeout override 적용
+  local fmt timeout perm tier
   fmt=$(jq -r '.engine.acpxFlags.format // "text"' "$ROUTING_FILE")
   timeout=$(jq -r '.engine.acpxFlags.timeoutSeconds // 300' "$ROUTING_FILE")
+  # 모델 tier 로 timeout override (GPT-5.6 HIGH=600s, GLM MEDIUM=300s, LOW=120s)
+  tier=$(jq -r --arg m "$model" '.models[$m].tier // empty' "$ROUTING_FILE" 2>/dev/null)
+  if [[ -n "$tier" ]]; then
+    timeout=$(jq -r --arg t "$tier" '.engine.modelTierTimeout[$t] // empty' "$ROUTING_FILE" 2>/dev/null)
+    [[ -z "$timeout" ]] && timeout=$(jq -r '.engine.acpxFlags.timeoutSeconds // 300' "$ROUTING_FILE")
+  fi
   perm=$(perm_flag_for_role "$role")
 
   local fallback="${OHMYCLAW_ENGINE_FALLBACK:-true}"

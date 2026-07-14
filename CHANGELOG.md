@@ -4,6 +4,22 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.11.1] — 2026-07-14
+
+### Added — GPT-5.6 고 effort 무한 루프 방지 (tool-call-deduper + tier-aware timeout)
+
+GPT-5.6 Sol/Terra 를 xhigh/ultra effort 로 사용 시 Codex CLI 가 반복 동일 tool call 을 bound 하지 못해(#27759) 무한 루프에 빠지고 사용량이 수분만에 소진되는(#32606) 문제에 대한 다층 방어.
+
+- **`tool-call-deduper.mjs`** (신규, `~/.codex/scripts/`) — PreToolUse hook. (tool_name + args_hash + session_id) identity 추적, 3회까지 동일 호출 허용, 4회째 block + feedback. MCP/state 도구는 제외. `DEDUPER_MAX_REPEATS` env 로 임계값 조절. 10분 stale cleanup + 200 entry cap.
+- **`hooks.json` PreToolUse 체인** — OMX hook 뒤에 deduper 를 두 번째 entry 로 추가 (timeout 5s). config.toml hook trust hash 갱신.
+- **`routing.json` tier-aware timeout** — `engine.acpxFlags.timeoutSeconds` 300→600, `modelTierTimeout` (LOW=120/MEDIUM=300/HIGH=600) 추가. engine.sh 가 selected model 의 tier 를 조회해 timeout 적용.
+- **`routing.json` 모델 loopRisk 메타데이터** — gpt-5.6-sol(loopRisk:high), terra(loopRisk:critical), luna(loopRisk:medium) + loopGuard 설명.
+- **`config.toml`** — `agents.max_threads` 1000→8, `agents.max_turns=30` 안전망 추가.
+- **engine.sh** — tier-aware timeout resolution 로직 추가.
+- **테스트** — bats 281 PASS / 0 FAIL (회귀 없음).
+
+> 근본 원인: Codex CLI #27759 (동일 tool call 반복 미차단) × #31822 (compaction 컨텍스트 손실 회귀) × #32587/#32674 (subagent 부모 effort 상속). 고 effort 일수록 모델이 "한 번 더 검증"하며 동일 tool 재호출 → Codex 가 매번 실행 → 무한 루프.
+
 ## [1.11.0] — 2026-07-14
 
 ### Added — GPT-5.6 시리즈 + OpenClaw 2026.7.1 호환
