@@ -366,6 +366,16 @@ if [[ "${OHMYCLAW_PROVIDER_HEALTH:-true}" == "true" && -x "$SCRIPT_DIR/provider-
 fi
 
 # ──────────────────────────────────────────────
+# Loop guard config export (routing.json → env)
+# ──────────────────────────────────────────────
+LOOP_MAX_SAME=$(jq -r --arg m "$PICKED" '
+  (.models[$m].loopGuard // "default") as $guard
+  | if $guard == "default" then .engine.loopGuardDefault.maxSame // 5
+    elif ($guard | type) == "object" then ($guard.maxSame // 5)
+    else 5 end
+' "$ROUTING_FILE" 2>/dev/null)
+export DEDUPER_MAX_SAME="${LOOP_MAX_SAME:-5}"
+# ──────────────────────────────────────────────
 # Output
 # ──────────────────────────────────────────────
 if [[ "$OUTPUT_JSON" == "true" ]]; then
@@ -388,6 +398,7 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
     --arg ph_to "$PH_GATE_TO" \
     --arg ph_provider "$PH_GATE_PROVIDER" \
     --arg ph_status "$PH_GATE_STATUS" \
+    --argjson loop_max "$LOOP_MAX_SAME" \
     '{
       model: $model,
       category: $category,
@@ -402,7 +413,8 @@ if [[ "$OUTPUT_JSON" == "true" ]]; then
       openrouterModelOverride: (if $or_model_override == "" then null else $or_model_override end),
       reason: $reason,
       fallbackChain: ($fallback | split(",")),
-      providerHealthGate: (if $ph_from == "" then null else {from:$ph_from, to:$ph_to, provider:$ph_provider, status:$ph_status} end)
+      providerHealthGate: (if $ph_from == "" then null else {from:$ph_from, to:$ph_to, provider:$ph_provider, status:$ph_status} end),
+      loopGuardMaxSame: $loop_max
     }'
 else
   echo "$PICKED"

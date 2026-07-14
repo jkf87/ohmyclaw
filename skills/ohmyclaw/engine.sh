@@ -163,7 +163,9 @@ cmd_resolve() {
     esac
   fi
 
-  echo "${chosen}|${cmd}"
+  # loop guard env 전달 — 호출자가 이 값을 eval 할 때 환경변수로 설정됨
+  local max_same="${DEDUPER_MAX_SAME:-5}"
+  echo "${chosen}|DEDUPER_MAX_SAME=${max_same} ${cmd}"
 }
 
 # ──────────────────────────────────────────────

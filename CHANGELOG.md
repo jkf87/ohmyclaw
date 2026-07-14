@@ -2,6 +2,21 @@
 
 본 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식과 [SemVer](https://semver.org/) 를 따릅니다.
 
+
+## [1.12.0] — 2026-07-14
+
+### Added — result-aware loop guard 파이프라인 (routing.json → Codex)
+
+GPT-5.6 고 effort 무한 루프(#27759)에 대한 result-aware 방어. 동일 tool+args의 **결과가 같을 때만** 루프로 판단 — 정상 test→fix→test 사이클(결과가 바뀜)은 허용.
+
+- **routing.json `loopGuardDefault`** — `maxSame: 50`, `advisoryThreshold: 10`. 모든 모델 통일. 50회 동일 결과까지 허용(실제 작업에 영향 없음), 10회부터 advisory 주입, 50회 차단.
+- **select-model.sh** — 선택된 모델의 loopGuard 설정을 `DEDUPER_MAX_SAME` env로 export. JSON 출력에 `loopGuardMaxSame` 필드 추가.
+- **engine.sh** — resolve 출력에 `DEDUPER_MAX_SAME=N` prefix 추가 → Codex spawn 시 환경변수 전달.
+- **deduper hook (v2)** — PostToolUse에서 결과 해시 기록 + advisory 주입, PreToolUse에서 동일 결과 N회 시 block. `DEDUPER_MAX_SAME` env로 임계값 제어.
+- **모델 loopGuard 필드** — gpt-5.6-sol/terra/luna 모두 `"default"` (loopGuardDefault 사용).
+- **테스트** — bats 281 PASS / 0 FAIL.
+
+> 파이프라인: routing.json#loopGuardDefault → select-model.sh (env export) → engine.sh (env prefix) → Codex 세션 → deduper hook (env 읽어서 result-aware 차단)
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
 ## [1.11.1] — 2026-07-14

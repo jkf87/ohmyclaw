@@ -44,6 +44,11 @@
       "MEDIUM": 300,
       "HIGH": 600
     },
+    "loopGuardDefault": {
+      "maxSame": 50,
+      "advisoryThreshold": 10,
+      "comment": "result-aware loop guard. 동일 tool+args+결과가 maxSame 회 반복 시 차단. advisoryThreshold 회부터 프롬프트 주입. select-model.sh → engine.sh → Codex env(DEDUPER_MAX_SAME) 파이프라인."
+    },
     "fallbackComment": "engine.sh 가 providerEngines[provider] 순서대로 command -v 확인. 첫 사용가능 엔진 선택. omp 부재 시 acpx 내장 어댑터로 강등."
   },
 
@@ -111,7 +116,7 @@
       "plans": ["oauth"],
       "note": "OMX DEFAULT_FRONTIER_MODEL (OpenClaw 2026.7.1 신규 설치 기본값). 점수표 없음 — frontier role 라벨로 슬롯 결정. codex_oauth_enabled=true 일 때 활성.",
       "loopRisk": "high",
-      "loopGuard": "tool-call-deduper (#27759) + max_turns=30. compaction token limit 120K 권장."
+      "loopGuard": "default"
     },
     "gpt-5.6-terra": {
       "displayName": "GPT-5.6 Terra",
@@ -123,7 +128,7 @@
       "plans": ["oauth"],
       "note": "GPT-5.6 Ultra 사고 변형 — 추론/수학/보안 최난도 전용. reasoning_heavy HIGH 시 gpt-5.6-sol 대신 우선.",
       "loopRisk": "critical",
-      "loopGuard": "tool-call-deduper (#27759) + max_turns=20. 사용량 소진 위험 최고 (#32606). 가능하면 sol 우선."
+      "loopGuard": "default"
     },
     "gpt-5.6-luna": {
       "displayName": "GPT-5.6 Luna",
@@ -135,7 +140,7 @@
       "plans": ["oauth"],
       "note": "GPT-5.6 경량 변형 (max 사고). latency 민감한 HIGH 작업용. gpt-5.6-sol 보다 빠르나 추론 깊이는 얕음.",
       "loopRisk": "medium",
-      "loopGuard": "tool-call-deduper (#27759) 적용. luna는 max 사고라 루프 위험이 sol/terra 대비 낮음."
+      "loopGuard": "default"
     },
     "gpt-5.5": {
       "displayName": "GPT-5.5 (legacy)",
