@@ -3,6 +3,37 @@
 본 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식과 [SemVer](https://semver.org/) 를 따릅니다.
 
 
+## [1.13.0] — 2026-07-14
+
+### Added — goal-loop: LazyCodex ulw-loop 파쿠리 (goal/evidence/criteria 기반 completion)
+
+LazyCodex ulw-loop의 핵심 아키텍처를 OhMyClaw bash 스킬로 이식. "같은 결과 반복 차단"이 아니라 **"목표가 완료되면 자연 종료"** 구조.
+
+- **`goal-loop.sh`** (신규, 400 LOC) — LazyCodex ulw-loop의 goal/evidence/criteria 상태머신을 bash + jq로 재구현:
+  - `init "brief"` — brief 텍스트에서 goals 파생 + success criteria 자동 시딩 (happy/edge/regression)
+  - `next [--json]` — 미완료 goal의 instruction 출력 (GOAL + SUCCESS CRITERIA + STOP WHEN + EVIDENCE)
+  - `evidence --goal-id --criterion-id --status pass|fail|blocked --evidence` — criterion 증거 기록
+  - `checkpoint --goal-id --status complete|failed|blocked --evidence` — goal 완료 (essential criteria 전부 pass 검증)
+  - `status [--json]` — plan 요약 (goals/criteria 통계 + done 여부)
+  - `steer --kind --evidence --rationale` — 방향 전환 기록
+  - `hook user-prompt-submit` — UserPromptSubmit steering (방향 전환 키워드 감지)
+  - `is-done` — 전체 완료 판정 (exit 0=done, 1=not done)
+  - State: `~/.cache/ohmyclaw/goal-loop/<session>/goals.json` + `ledger.jsonl`
+
+- **LazyCodex 대비 파쿠리 핵심**:
+  - goal status (pending → in_progress → complete/failed/blocked) — 동일
+  - successCriteria (happy/edge/regression, essential 필드) — 동일
+  - evidence 기반 criterion 판정 (pass/fail/blocked) — 동일
+  - ledger.jsonl 감사 추적 (모든 상태 변화 기록) — 동일
+  - essential criteria 전부 pass 못 하면 checkpoint complete 거부 — 동일
+  - aggregateCompletion (전체 goal 완료 시 자동 마킹) — 동일
+  - steering (UserPromptSubmit 방향 전환 감지) — 동일
+
+- **기존 deduper와의 관계**: goal-loop = "작업이 끝났는가?" (proactive completion), deduper = "같은 결과가 반복되는가?" (reactive guard). 상호 보완.
+
+- **테스트** — init/status/next/evidence/checkpoint/is-done/hook 전 시나리오 통과. bats 281 PASS / 0 FAIL (회귀 없음).
+
+
 ## [1.12.0] — 2026-07-14
 
 ### Added — result-aware loop guard 파이프라인 (routing.json → Codex)
