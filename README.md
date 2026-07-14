@@ -749,9 +749,10 @@ skills/ohmyclaw/
     ├── team-orchestrator.md, team-executor.md
     └── README.md
 ```
-## Goal-Loop (v1.13.0) — LazyCodex ulw-loop 파쿠리
+## Goal-Loop (v1.13.0) — Evidence-Driven Goal Completion
 
-GPT-5.6 고 effort(xhigh/ultra)에서 발생하는 무한 루프를 **목표 완료 기반**으로 방지. 같은 결과 반복 차단이 아니라, 목표가 완료되면 자연 종료.
+LazyCodex ulw-loop 아키텍처의 핵심 컨셉(goal/evidence/criteria 상태머신)을 차용하여 OhMyClaw bash 스킬로 재구현. GPT-5.6 고 effort(xhigh/ultra)에서 발생하는 무한 루프를 **목표 완료 기반**으로 방지.
+
 
 ```bash
 goal-loop.sh init "- 사용자 인증 구현
@@ -785,7 +786,7 @@ Routes across Z.ai Coding Plan (Lite/Pro/Max) + ChatGPT Codex OAuth + OpenRouter
 - **Multi-provider routing** — Z.ai GLM (5-Turbo/5/5.1/5.2), OpenAI GPT-5.6 (Sol/Terra/Luna) & GPT-5.4/5.5, OpenRouter 200+ models
 - **Task-aware model selection** — Complexity × Category 2D matrix + plan-aware routing with automatic downgrade
 - **GPT-5.6 support** (v1.11.0+) — Sol (frontier/ultra), Terra (frontier-reasoning/ultra), Luna (frontier-fast/max)
-- **Goal-loop completion** (v1.13.0) — Goal/evidence/criteria-based completion tracking (ported from LazyCodex ulw-loop)
+- **Goal-loop completion** (v1.13.0) — Evidence-driven goal/criteria completion tracking, adapting the architecture of LazyCodex ulw-loop for the OhMyClaw skill runtime
 - **Loop guard** (v1.12.0) — Result-aware tool-call dedup pipeline (routing.json → Codex hook, maxSame=50)
 - **Multi-agent orchestration** — `/ohmyclaw team`, `/ohmyclaw ralph`, `/ohmyclaw plan --consensus`
 - **Socratic interview** — 4-dimension clarity gate (goal/constraint/success/context)
@@ -834,7 +835,7 @@ User request → select-model.sh (routing.json) → engine.sh (acpx/CLI) → Cod
 
 | Version | Highlights |
 |---------|-----------|
-| v1.13.0 | goal-loop.sh — LazyCodex ulw-loop port (goal/evidence/criteria) |
+| v1.13.0 | goal-loop.sh — Evidence-driven goal/criteria completion (adapted from LazyCodex ulw-loop architecture) |
 | v1.12.0 | Result-aware loop guard pipeline (maxSame=50) |
 | v1.11.0 | GPT-5.6 series + OpenClaw 2026.7.1 compat |
 | v1.10.0 | Multi-account auth-order health sync |

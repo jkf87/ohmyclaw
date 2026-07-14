@@ -5,9 +5,9 @@
 
 ## [1.13.0] — 2026-07-14
 
-### Added — goal-loop: LazyCodex ulw-loop 파쿠리 (goal/evidence/criteria 기반 completion)
+### Added — goal-loop: Evidence-driven goal completion (LazyCodex ulw-loop architecture adapted)
 
-LazyCodex ulw-loop의 핵심 아키텍처를 OhMyClaw bash 스킬로 이식. "같은 결과 반복 차단"이 아니라 **"목표가 완료되면 자연 종료"** 구조.
+LazyCodex ulw-loop 아키텍처의 핵심 컨셉(goal/evidence/criteria 상태머신)을 차용하여 OhMyClaw bash 스킬로 재구현. "같은 결과 반복 차단"이 아니라 **"목표가 완료되면 자연 종료"** 구조.
 
 - **`goal-loop.sh`** (신규, 400 LOC) — LazyCodex ulw-loop의 goal/evidence/criteria 상태머신을 bash + jq로 재구현:
   - `init "brief"` — brief 텍스트에서 goals 파생 + success criteria 자동 시딩 (happy/edge/regression)
@@ -20,7 +20,7 @@ LazyCodex ulw-loop의 핵심 아키텍처를 OhMyClaw bash 스킬로 이식. "�
   - `is-done` — 전체 완료 판정 (exit 0=done, 1=not done)
   - State: `~/.cache/ohmyclaw/goal-loop/<session>/goals.json` + `ledger.jsonl`
 
-- **LazyCodex 대비 파쿠리 핵심**:
+- **LazyCodex ulw-loop 아키텍처 차용 핵심**:
   - goal status (pending → in_progress → complete/failed/blocked) — 동일
   - successCriteria (happy/edge/regression, essential 필드) — 동일
   - evidence 기반 criterion 판정 (pass/fail/blocked) — 동일
