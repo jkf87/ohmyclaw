@@ -1,3 +1,5 @@
+# ⚠️ DEPRECATED — 본 YAML 파일은 route-task.sh (standalone) 전용이며 v1.5.0 이후 갱신 중단.
+# 실제 라우팅 단일 소스: skills/ohmyclaw/routing.json (gpt-5.6-sol/terra/luna, glm-5.2 포함).
 # OpenClaw 하네스 — 모델 카탈로그
 # ✅ 1순위: Z.ai 코딩플랜 GLM 시리즈 (Lite/Pro/Max)
 # ✅ 2순위: OpenAI Codex OAuth (ChatGPT Plus/Pro 구독 기반, 선택)

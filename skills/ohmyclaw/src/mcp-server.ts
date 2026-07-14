@@ -144,7 +144,7 @@ server.registerTool(
     description:
       "ACP 엔진 명령 결정. 모델·인증타입·역할로 acpx 실행 템플릿(`ENGINE|CMD_TEMPLATE`) 반환. omp 우선, 폴백 자동.",
     inputSchema: {
-      model: z.string().min(1).describe("예: glm-5.1, gpt-5.4, openrouter-claude-opus-4"),
+      model: z.string().min(1).describe("예: glm-5.1, gpt-5.6-sol, openrouter-claude-opus-4"),
       authType: z
         .enum(["oauth_zai", "oauth_codex", "api_key", "oauth_claude_cli", ""])
         .default("")

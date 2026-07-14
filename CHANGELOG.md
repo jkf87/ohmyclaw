@@ -4,6 +4,25 @@
 
 > **📝 버전 정정 노트 (2026-05-24)** — 이 파일의 아래쪽 `[1.0.0]` / `[1.1.0]` 섹션은 origin 의 공식 GitHub 릴리즈 v1.0.0 (OpenClaw Multi-Provider Harness, 2026-04-10) / v1.1.0 (OpenRouter Integration, 2026-04-11) 과 **다른 작업**이며, 본 리포 자체 일련번호로 잘못 라벨된 작업입니다. 실제로는 origin v1.3.0 (gpt-5.5 frontier, 2026-05-02) 이후의 후속 작업으로, **v1.4.0 단일 릴리즈로 통합**됩니다. 정식 GitHub 태그/릴리즈는 v1.4.0 만 유효하며 잘못 라벨된 섹션 헤더는 역사 기록 차원에서 그대로 보존합니다.
 
+## [1.11.0] — 2026-07-14
+
+### Added — GPT-5.6 시리즈 + OpenClaw 2026.7.1 호환
+
+OpenClaw 2026.7.1 이 GPT-5.6(Luna/Sol/Terra) 을 신규 설치 기본 모델로 채택(#98333, #103581, #98021) 함에 따라 ohmyclaw 라우팅을 업데이트. ClawRouter(USDC 게이트웨이) 는 직접 연결(path B) 유지로 미사용.
+
+- **모델 정의** — `routing.json#models` 에 `gpt-5.6-sol`(frontier, ultra thinking), `gpt-5.6-terra`(frontier-reasoning, ultra), `gpt-5.6-luna`(frontier-fast, max) 3종 추가. `gpt-5.5` → legacy, `gpt-5.4` → deep-legacy 로 역할 이동.
+- **codexOverlay** — 코딩/아키텍처/디버깅/데이터분석 HIGH → `gpt-5.6-sol`, 보안/추론 HIGH → `gpt-5.6-terra` 로 분리(추론 집약 태스크에 terra 배정).
+- **select-model.sh P82** — `reasoning_heavy + Codex` → `gpt-5.5` 에서 `gpt-5.6-terra` 로 격상(ultra extended thinking).
+- **fallbackChains** — `withCodex`/`withClaudeCli` 체인에 `gpt-5.6-sol`/`gpt-5.6-terra` → `gpt-5.5`(legacy) 순으로 삽입. 기존 `gpt-5.4` deep-legacy 제거(2세대 전이라 체인 부담).
+- **engine.sh** — doctor smoke loop `gpt-5.4` → `gpt-5.6-sol`. 헤더 주석 예시 `gpt-5.4` → `gpt-5.6-sol`.
+- **hud.sh** — Codex 활성 시 표시 모델 `gpt-5.5, gpt-5.4` → `gpt-5.6-sol, gpt-5.6-terra, gpt-5.5`.
+- **스키마** — `routing.schema.json#omxRole` enum 에 `frontier-reasoning`, `frontier-fast`, `deep-legacy` 추가.
+- **문서** — SKILL.md(JSON 예시·매트릭스·오버레이 표·엔진 라우팅·provider-health 예시), prompts/README.md(역할×모델 표), prompts/reviewer.md, mcp-server.ts(예시 모델명) 전면 갱신. routing/*.yaml(standalone route-task.sh 전용) deprecation 헤더 추가.
+- **테스트** — select-model.bats P82/codex-overlay 정규식 `^gpt-5\.(4|5)$` → `^gpt-5\.[4-6]` 로 5.6 변종 수용. bats **281 PASS / 0 FAIL**.
+- **routing.json** 버전 1.5.0 → 1.6.0.
+
+> **7.1 호환성**: ClawRouter(bundled plugin) 는 USDC/x402 기반 게이트웨이로, 기존 Z.ai 구독 + OpenAI OAuth 직접 연결(path B) 유지 시 불필요. `message send --presentation`, `models auth order`, `models status --json` 등 ohmyclaw 의존 CLI 는 7.1 에서 breaking change 없음 — 운영 로그(register-commands, auth-order-sync launchd) 정상 동작 확인.
+
 ## [1.10.1] — 2026-07-10
 
 ### Fixed — auth-order-sync 콜드스타트 no-op

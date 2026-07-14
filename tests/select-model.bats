@@ -61,13 +61,13 @@ teardown() {
 @test "P82 reasoning_heavy + codex -> gpt-5.x" {
   CODEX_OAUTH_ENABLED=true run sm "분산 합의 정합성 증명 algorithm invariant" reasoning --plan=pro
   [ "$status" -eq 0 ]
-  [[ "$output" =~ ^gpt-5\.(4|5)$ ]]
+  [[ "$output" =~ ^gpt-5\.[4-6] ]]
 }
 
 @test "codex overlay coding_arch HIGH -> gpt-5.x" {
   CODEX_OAUTH_ENABLED=true run sm "전체 인증 시스템 마이그레이션 + 신규 SSO + 캐시 + 모니터링 + 분산 + 큐 + 페일오버 + 다중 region + zero downtime + 점진 배포" coding_arch --plan=pro
   [ "$status" -eq 0 ]
-  [[ "$output" =~ ^gpt-5\.(4|5)$ ]]
+  [[ "$output" =~ ^gpt-5\.[4-6] ]]
 }
 
 @test "codex disabled never recommends gpt" {

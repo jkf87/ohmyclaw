@@ -231,10 +231,10 @@ if [[ -z "$PICKED" && -n "$OPENROUTER_MODEL_OVERRIDE" ]]; then
   REASON="openrouter_model_override (P99)"
 fi
 
-# P82: reasoning_heavy + Codex → gpt-5.5 (OMX frontier)
+# P82: reasoning_heavy + Codex → gpt-5.6-terra (OMX frontier, ultra thinking)
 if [[ -z "$PICKED" && "$CODEX" == "true" && "$REASONING_HEAVY" == "true" ]]; then
-  PICKED="gpt-5.5"
-  REASON="reasoning_heavy + codex (P82, OMX frontier, extended thinking)"
+  PICKED="gpt-5.6-terra"
+  REASON="reasoning_heavy + codex (P82, OMX frontier, ultra extended thinking)"
 fi
 
 # P81: reasoning_heavy + Pro/Max → glm-5.2 (차세대 플래그십, reasoning_score 최상위 glm)

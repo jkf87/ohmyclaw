@@ -1,3 +1,5 @@
+# ⚠️ DEPRECATED — 본 YAML 파일은 route-task.sh (standalone) 전용이며 v1.5.0 이후 갱신 중단.
+# 실제 라우팅 단일 소스: skills/ohmyclaw/routing.json (gpt-5.6-sol/terra/luna, glm-5.2 포함).
 # OpenClaw 하네스 — Z.ai 코딩플랜 티어 정의
 # 활성 플랜은 ZAI_CODING_PLAN 환경변수 또는 본 파일의 active_plan 으로 지정.
 #

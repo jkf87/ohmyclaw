@@ -158,15 +158,15 @@ JSON 출력 예시:
 
 ```json
 {
-  "model": "gpt-5.5",
+  "model": "gpt-5.6-terra",
   "category": "reasoning",
   "complexity": { "score": 8, "tier": "MEDIUM" },
   "koreanRatio": 1.0,
   "reasoningHeavy": true,
   "activePlan": "pro",
   "codexOauthEnabled": true,
-  "reason": "reasoning_heavy + codex (P82, OMX frontier, extended thinking)",
-  "fallbackChain": ["gpt-5.5", "gpt-5.4", "glm-5.1", "glm-5", "glm-5-turbo"]
+  "reason": "reasoning_heavy + codex (P82, OMX frontier, ultra extended thinking)",
+  "fallbackChain": ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5", "glm-5-turbo"]
 }
 ```
 
@@ -185,7 +185,7 @@ JSON 출력 예시:
 
 - **Lite**: HIGH 슬롯 전부 `glm-5` 로 강등 (GLM-5.1 미포함)
 - **Max**: MEDIUM 코딩/리뷰도 적극적으로 `glm-5.1` 사용
-- **+Codex**: 코딩(아키/일반 HIGH), 디버깅(HIGH), 보안(MEDIUM/HIGH), 추론(HIGH), 데이터분석(HIGH) → `gpt-5.5` (OMX frontier; `gpt-5.4` 는 legacy fallback)
+- **+Codex**: 코딩(아키/일반 HIGH), 디버깅(HIGH), 보안(MEDIUM/HIGH), 추론(HIGH), 데이터분석(HIGH) → `gpt-5.6-sol`/`gpt-5.6-terra` (OMX frontier; `gpt-5.5` 는 legacy fallback)
 
 전체 매트릭스: `routing.json#matrix.<plan>` 참조.
 
@@ -194,10 +194,10 @@ JSON 출력 예시:
 1. **P100** — 사용자 명시 오버라이드 (`--plan=` / `--codex`)
 2. **P95** — 활성 플랜 미허용 모델 자동 강등
 3. **P90** — 한국어 비율 >70% + NLP/콘텐츠 → GLM 시리즈 우선
-4. **P82** — 🧠 reasoning_heavy + Codex 활성 → **gpt-5.5** (OMX frontier, extended thinking)
+4. **P82** — 🧠 reasoning_heavy + Codex 활성 → **gpt-5.6-terra** (OMX frontier, ultra extended thinking)
 5. **P81** — 🧠 reasoning_heavy + Pro/Max → **glm-5.1**
 6. **P81b** — 🧠 reasoning_heavy + Lite → glm-5 (상한)
-7. **P80** — Codex 활성 + 고난도 아키/보안/추론/분석 → gpt-5.5
+7. **P80** — Codex 활성 + 고난도 아키/보안/추론/분석 → gpt-5.6-sol (보안/추론 HIGH → gpt-5.6-terra)
 8. **P75** — Pro/Max + HIGH 복잡도 → glm-5.1
 9. **P70** — Lite + HIGH → glm-5 (상한)
 10. **P50** — LOW → glm-5-turbo
@@ -226,11 +226,11 @@ JSON 출력 예시:
 
 | 조건 | 선택 모델 | 근거 |
 |------|-----------|------|
-| reasoning_heavy + Codex 활성 | **gpt-5.5** | OMX `DEFAULT_FRONTIER_MODEL` (점수표 없음, frontier role) |
+| reasoning_heavy + Codex 활성 | **gpt-5.6-terra** | OMX `DEFAULT_FRONTIER_MODEL` (점수표 없음, frontier role) |
 | reasoning_heavy + Pro/Max | **glm-5.1** | reasoning 95 (Z.ai 자체 매트릭스 최상위) |
 | reasoning_heavy + Lite | glm-5 (상한) | Lite 플랜 cap |
 
-> Codex fallback 시 `gpt-5.4` (legacy) → `glm-5.1` 순으로 강등.
+> Codex fallback 시 `gpt-5.5` (legacy) → `glm-5.2` 순으로 강등.
 
 전체 정의: `routing.json#reasoningDetection`
 
@@ -238,7 +238,7 @@ JSON 출력 예시:
 
 ## 5. Codex OAuth overlay (선택)
 
-ChatGPT Plus($20/월) 또는 Pro($200/월) 구독 보유 시, OpenAI Codex CLI OAuth 로 **gpt-5.5** (OMX `DEFAULT_FRONTIER_MODEL`) 을 추가 비용 없이 병행할 수 있습니다. `gpt-5.4` 는 legacy fallback 으로 유지됩니다.
+ChatGPT Plus($20/월) 또는 Pro($200/월) 구독 보유 시, OpenAI Codex CLI OAuth 로 **gpt-5.6-sol** (OMX `DEFAULT_FRONTIER_MODEL`, OpenClaw 2026.7.1 신규 설치 기본값) 을 추가 비용 없이 병행할 수 있습니다. `gpt-5.5` 는 legacy fallback 으로 유지됩니다.
 
 ### 5-1. 셋업 (한 번만)
 
@@ -262,18 +262,18 @@ export CODEX_OAUTH_ENABLED=true
 
 ### 5-2. 오버레이 동작
 
-`CODEX_OAUTH_ENABLED=true` 일 때 아래 슬롯이 `gpt-5.5` 로 자동 오버레이됩니다 (codex CLI 가 5.5 미인식 시 → `gpt-5.4` legacy fallback):
+`CODEX_OAUTH_ENABLED=true` 일 때 아래 슬롯이 `gpt-5.6-sol` 로 자동 오버레이됩니다 (보안/추론 HIGH 는 `gpt-5.6-terra`, codex CLI 가 5.6 미인식 시 → `gpt-5.5` legacy fallback):
 
 | 카테고리 | 복잡도 | Z.ai 단독 | + Codex |
 |----------|--------|-----------|---------|
-| coding_arch | MEDIUM/HIGH | glm-5.1 | **gpt-5.5** |
-| coding_general | HIGH | glm-5.1 | **gpt-5.5** |
-| debugging | HIGH | glm-5.1 | **gpt-5.5** |
-| security | MEDIUM/HIGH | glm-5.1 | **gpt-5.5** |
-| **reasoning** | HIGH | glm-5.1 | **gpt-5.5** 🧠 |
-| **data_analysis** | HIGH | glm-5.1 | **gpt-5.5** 🧠 |
+| coding_arch | MEDIUM/HIGH | glm-5.1 | **gpt-5.6-sol** |
+| coding_general | HIGH | glm-5.1 | **gpt-5.6-sol** |
+| debugging | HIGH | glm-5.1 | **gpt-5.6-sol** |
+| security | MEDIUM/HIGH | glm-5.1 | **gpt-5.6-terra** |
+| **reasoning** | HIGH | glm-5.1 | **gpt-5.6-terra** 🧠 |
+| **data_analysis** | HIGH | glm-5.1 | **gpt-5.6-sol** 🧠 |
 
-🧠 = extended thinking. gpt-5.5 는 OMX (oh-my-codex) 의 `DEFAULT_FRONTIER_MODEL` 로 박혀있어 점수표 추정 없이 frontier role 그대로 사용.
+🧠 = ultra extended thinking. gpt-5.6-sol/terra 는 OMX (oh-my-codex) 의 `DEFAULT_FRONTIER_MODEL` 로 박혀있어 점수표 추정 없이 frontier role 그대로 사용.
 
 > **rate limit 보호**: Codex 동시 워커는 최대 3개로 제한 (`routing.json#concurrency`)
 
@@ -423,7 +423,7 @@ $P next glm-5.1
 # → zai-primary|oauth_zai|default|pro|10
 #    (id|authType|authValue|plan|weight)
 
-$P next gpt-5.5   # CODEX_OAUTH_ENABLED=true 필요 (gpt-5.4 도 동일 풀)
+$P next gpt-5.6-sol   # CODEX_OAUTH_ENABLED=true 필요 (gpt-5.5 도 동일 풀)
 # → codex-primary|oauth_codex|/Users/me/.codex|any|10
 
 # 풀 + 계정 상태 확인
@@ -531,7 +531,7 @@ rm -f "$ERRLOG"
 - **사전 게이트(proactive)**: `select-model.sh` 가 매 선택 시 `openclaw models
   status --json` 을 TTL 캐시(기본 45s)로 조회해, 만료(`expired`/`missing`) 또는
   격리된 provider 의 모델을 **폴백 체인의 첫 정상 모델로 강등**한다. (예:
-  openai 만료 → `gpt-5.5` → `glm-5.2`)
+  openai 만료 → `gpt-5.6-sol` → `glm-5.2`)
 - **사후 감지(reactive)**: `provider-health.sh scan-stderr` 가 엔진 stderr 의
   `login expired` / `auth permanent` 시그니처에서 provider 를 추출해 격리한다
   (§ 6-3 recipe 8b). exit 0 폴백에도 안전.
@@ -734,7 +734,7 @@ bash pty:true workdir:"$PROJECT" background:true command:"$CMD"
 
 엔진 선택은 **모델→provider→engine.sh** 가 결정합니다:
 - `glm-*` → omp(설치 시) → pi 폴백 (Z.ai provider)
-- `gpt-5.5` / `gpt-5.4` → omp(설치 시) → codex 폴백 (Codex CLI + ChatGPT OAuth)
+- `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.5` → omp(설치 시) → codex 폴백 (Codex CLI + ChatGPT OAuth)
 - `openrouter-*` → omp → codex 폴백
 
 > 실험적 Claude Code 위임은 `skills/ohmyclaw/claude-delegate.sh` 헬퍼로도 가능합니다 (engine.sh 폴백과 별개의 선택 경로).
@@ -1062,7 +1062,7 @@ bash workdir:~/project command:"$RCMD"
 SKILL=skills/ohmyclaw
 $SKILL/select-model.sh "분산 락의 정합성 증명과 race condition 케이스 분석" \
   reasoning --plan=pro --codex --json
-# → model: gpt-5.5 (P82, OMX frontier, extended thinking)
+# → model: gpt-5.6-terra (P82, OMX frontier, ultra extended thinking)
 ```
 
 ---

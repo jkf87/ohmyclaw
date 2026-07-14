@@ -82,7 +82,7 @@
               "korean":    { "type": "integer", "minimum": 0, "maximum": 100 }
             }
           },
-          "omxRole":         { "type": "string", "enum": ["frontier", "legacy"], "description": "score 없이 역할 라벨로 슬롯 결정 (OMX 호환 모델)." },
+          "omxRole":         { "type": "string", "enum": ["frontier", "frontier-reasoning", "frontier-fast", "legacy", "deep-legacy"], "description": "score 없이 역할 라벨로 슬롯 결정 (OMX 호환 모델)." },
           "reasoningMode":   { "type": "boolean" },
           "anthropicAlias":  { "type": "string" },
           "auth":            { "type": "string" },

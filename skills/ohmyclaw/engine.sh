@@ -21,8 +21,8 @@
 # 예시:
 #   engine.sh resolve glm-5.1 oauth_zai reviewer
 #     → omp|acpx --agent "omp acp" --model glm-5.1 --cwd {{CWD}} --approve-reads --format text --timeout 300 {{TASK}}
-#   engine.sh resolve gpt-5.4 oauth_codex executor   (omp 부재 시)
-#     → codex|acpx --model gpt-5.4 --cwd {{CWD}} --approve-all --format text --timeout 300 codex {{TASK}}
+#   engine.sh resolve gpt-5.6-sol oauth_codex executor   (omp 부재 시)
+#     → codex|acpx --model gpt-5.6-sol --cwd {{CWD}} --approve-all --format text --timeout 300 codex {{TASK}}
 #
 # Reads: routing.json (same directory) → .engine.{preferred,providerEngines,acpxAgents,permissions,acpxFlags}
 #
@@ -217,7 +217,7 @@ cmd_doctor() {
     echo "ℹ 엔진 0개 가용 — smoke 건너뜀 (CI/fresh 환경에서는 정상. 'engine.sh acp-config' 설치 가이드 참조)"
   else
     local out
-    for m in glm-5.1 gpt-5.4; do
+    for m in glm-5.1 gpt-5.6-sol; do
       if out=$(cmd_resolve "$m" "" reviewer 2>&1); then
         echo "✓ resolve $m → ${out%%|*}"
       else
