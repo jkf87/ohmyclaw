@@ -1410,6 +1410,42 @@ USAGE
 }
 
 # ──────────────────────────────────────────────
+# 버전 체크 — GitHub Releases API, 하루 1회 캐시
+# ──────────────────────────────────────────────
+_check_update() {
+  [[ "${OHMYCLAW_SKIP_UPDATE_CHECK:-0}" == "1" ]] && return 0
+
+  local cache_file="${OHMYCLAW_HOME}/update-check.cache"
+  local now_ts; now_ts=$(date +%s)
+  local cache_ts=0
+
+  [[ -f "$cache_file" ]] && cache_ts=$(head -1 "$cache_file" 2>/dev/null || echo 0)
+  if (( now_ts - cache_ts < 86400 )); then
+    local cached_latest; cached_latest=$(sed -n '2p' "$cache_file" 2>/dev/null || echo "")
+    local local_v; local_v=$(cat "$SCRIPT_DIR/../../VERSION" 2>/dev/null || echo "0")
+    if [[ -n "$cached_latest" && "$cached_latest" != "$local_v" ]]; then
+      echo "📦 ohmyclaw $cached_latest available (current $local_v) — update: cd \"$SCRIPT_DIR/../..\" && git pull" >&2
+    fi
+    return 0
+  fi
+
+  local latest=""
+  latest=$(curl --max-time 3 -sf \
+    "https://api.github.com/repos/jkf87/ohmyclaw/releases/latest" 2>/dev/null \
+    | jq -r '.tag_name // empty' 2>/dev/null \
+    | sed 's/^v//' || echo "")
+
+  mkdir -p "$OHMYCLAW_HOME"
+  echo "${now_ts}" > "$cache_file"
+  echo "${latest}" >> "$cache_file"
+
+  local local_v; local_v=$(cat "$SCRIPT_DIR/../../VERSION" 2>/dev/null || echo "0")
+  if [[ -n "$latest" && "$latest" != "$local_v" ]]; then
+    echo "📦 ohmyclaw $latest available (current $local_v) — update: cd \"$SCRIPT_DIR/../..\" && git pull" >&2
+  fi
+}
+
+# ──────────────────────────────────────────────
 # 디스패치
 # ──────────────────────────────────────────────
 VERB="${1:-help}"; shift || true
@@ -1417,6 +1453,7 @@ VERB="${1:-help}"; shift || true
 case "$VERB" in
   help|-h|--help) cmd_help ;;
   doctor|route|pool|engine|state|hooks|cancel|ask|exec|interview|commands|plan-gate|gap-gate|version)
+    _check_update
     _run_verb "$VERB" "$@"
     ;;
   *)

@@ -322,3 +322,14 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
+
+## [1.13.1] — 2026-07-15
+
+### Added — 자동 버전 체크 (GitHub Releases API)
+
+- `cli.sh` 실행 시 GitHub Releases API 로 최신 버전 조회 (`curl --max-time 3`)
+- 24시간 캐시 (`~/.ohmyclaw/update-check.cache`) — 매 실행마다 API 호출 안 함
+- 구버전일 경우 stderr 에 한 줄 알림: `📦 ohmyclaw X.Y.Z available (current A.B.C) — update: git pull`
+- `OHMYCLAW_SKIP_UPDATE_CHECK=1` env 로 비활성 가능
+- bats 281 PASS / 0 FAIL
+
