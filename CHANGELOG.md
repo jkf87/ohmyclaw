@@ -323,6 +323,83 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
 
+## [1.14.0] — 2026-08-19
+
+### Added — sqlite 세션 스토어: 긴 작업 재개 (`session-store.sh`)
+
+**긴 작업이 중단되면 처음부터 다시 하던 문제**를 해결합니다. 단계·태스크 단위로 sqlite 에 커밋해두고, 재개 시 **남은 일만** 다시 배정합니다.
+
+v1.12.0 의 result-aware deduper 와는 다른 층입니다 — deduper 는 **같은 툴콜 반복(폭주)** 을 억제하고, 이건 **중단된 작업의 재개**를 다룹니다.
+
+- **스토어** — `~/.ohmyclaw/sessions.sqlite` (`OHMYCLAW_SESSION_DB` 로 재지정). WAL + busy_timeout 으로 sqlite 가 직렬화하므로 파일락이 필요 없습니다. 8 워커 동시 쓰기 80/80, seq 충돌 0 으로 검증.
+- **테이블** — `sessions`(수명주기·하트비트·재개횟수) / `checkpoints`(단계별 산출물) / `tasks`(태스크 원장).
+- **재개 봉투** — `resume <sid>` 가 `remaining_task_ids` 를 포함한 JSON 을 냅니다. `done` 태스크는 재실행하지 않고, `running` 상태로 죽은 고아 태스크는 `pending` 으로 회수합니다.
+- **중단 감지** — `interrupted --stale-sec 900` 으로 하트비트 끊긴 세션을 뽑습니다.
+- **`spawn-agent.sh` 연동** — `OHMYCLAW_SESSION_ID` 가 있을 때만 기록하며 전부 best-effort. 스토어 장애가 spawn 을 막지 않습니다.
+- **`export <sid>`** — 트라젝토리 전체를 JSON 으로. 외부 뷰어(trackio 등)로 넘길 단일 출구이며 스토어 자체는 파이썬 런타임에 의존하지 않습니다.
+
+### Fixed — 버전 체크가 문자열 비교라 잘못 알리던 문제
+
+v1.13.1 의 `_check_update` 가 `"$cached_latest" != "$local_v"` 로 비교하고 있어 두 가지가 틀렸습니다.
+
+1. **로컬이 최신 릴리스보다 앞설 때**(개발 중) "업데이트 있음"을 영원히 출력 — 메인테이너가 가장 자주 겪는 케이스입니다.
+2. `1.9.0` vs `1.11.0` 같은 자리수 차이를 오판.
+
+`_semver_gt` 로 숫자 필드별 비교하도록 고쳤습니다. 프리릴리스 꼬리표(`-rc1`)는 제거 후 비교하고, 숫자가 아닌 값이 오면 알리지 않습니다.
+
+### Added — 별(star) 안내
+
+작업이 **성공했을 때만** 저장소 링크를 안내합니다.
+
+- 링크만 안내합니다. 토큰을 읽거나 API 로 누르는 동작은 하지 않습니다.
+- 30일 쿨다운. `ohmyclaw star --never` 로 영구 해제, `--force` 로 다시 보기.
+- `OHMYCLAW_SKIP_STAR_PROMPT=1` 로도 끌 수 있습니다.
+- 성공 종료(rc=0)에만 발화하므로 실패한 작업 뒤에 별을 조르지 않습니다.
+
+### Changed — 긴 작업을 자르던 한도 상향
+
+v1.13.1 이 acpx 타임아웃을 600s 로 올렸지만, **실제 절단 지점인 `agents/worker.md` 의 `timeout_ms: 600000`(10분) 은 그대로 남아 있었습니다.**
+
+| 지점 | 이전 | 이후 |
+|---|---|---|
+| `agents/worker.md` `timeout_ms` | 600000 (10분) | **3600000 (60분)** |
+| `agents/debugger.md` | 600000 | 1800000 (30분) |
+| `agents/planner.md` · `reviewer.md` | 300000 (5분) | 900000 (15분) |
+| `routing.json` acpx `timeoutSeconds` | 600 | 3600 |
+| `pipelines.yaml` work 단계 | 600000 | 3600000 |
+| 툴콜 서킷브레이커 | 50 | 400 |
+| `spawn-agent.sh` 기본 `max_tokens` | 32000 고정 | 모델 실제 한도 (routing.json) |
+| `agents/worker.md` `max_tokens` | 64000 | 128000 |
+
+`max_tool_calls: 50` 은 긴 작업의 **정상 동작**을 오탐하고 있었습니다. 진짜 반복은 v1.12.0 의 result-aware deduper(maxSame=50)가 잡으므로 400 으로 올렸습니다. `consecutive_same: 5` 는 그대로 둡니다.
+
+### Fixed — GPT-5.6 계열 메타데이터를 실측값으로 정정
+
+v1.11.0 의 GPT-5.6 항목이 관측 근거 없는 성능 서열을 담고 있었습니다. OpenClaw 2026.7.1 설치본 카탈로그(`openai-provider-*.js`, `thinking-policy-*.js`)를 직접 읽어 정정합니다.
+
+**Sol / Terra / Luna 는 컨텍스트(1.05M)·출력(128k)·reasoning·이미지 입력이 전부 동일합니다.** 다른 것은 비용과 기본 effort 뿐입니다.
+
+| 모델 | 비용 in/out (1M) | 기본 effort | ultra |
+|---|---|---|---|
+| Sol | $5 / $30 | low | ✅ |
+| Terra | $2.5 / $15 | medium | ✅ |
+| Luna | $1 / $6 | medium | codex 런타임 제외 |
+
+- `reasoningEffort: "ultra"` (Sol) → 실측 기본값은 `low` 입니다. `defaultThinking` 으로 교체하고 `supportsUltra` 를 분리했습니다.
+- Terra 를 "Ultra 사고 변형 — 최난도 전용"으로 적고 reasoning HIGH 에서 Sol 보다 우선시키던 것을 되돌립니다. Terra 는 Sol 의 **상위가 아니라 절반 가격의 동급**이라, 선택은 성능이 아니라 비용 결정입니다.
+- Luna 의 "추론 깊이는 얕음" 서술을 제거했습니다. 실측상 유일한 제약은 codex 런타임에서 ultra 미지원입니다.
+- `security` 오버레이가 MEDIUM 에 Sol, HIGH 에 Terra 를 주어 **MEDIUM 이 더 비싼 모델을 쓰던 역전**을 바로잡았습니다.
+- `contextWindow` / `maxTokens` / `costPer1k*` 를 추가해 `spawn-agent.sh` 가 출력 한도를 모델에서 읽을 수 있게 했습니다.
+- 운영 관측치인 `loopRisk` / `loopGuard` 는 반박 근거가 없어 업스트림 값 그대로 보존했습니다.
+
+### Added — 내구성 정책 (`pipelines.yaml` `durability:`)
+
+하트비트 주기·체크포인트 시점·재개 상한(5회)·보존 기간을 한 곳에서 선언합니다. `failure_policy.worker_timeout` 이 체크포인트 재개를 가리키도록 연결했습니다.
+
+### Tests
+
+`tests/session-store.bats` **+29**. 전체 **310 PASS / 0 FAIL**.
+
 ## [1.13.1] — 2026-07-15
 
 ### Added — 자동 버전 체크 (GitHub Releases API)

@@ -24,8 +24,8 @@ spawn:
   context_exclude:
     - "세션 히스토리"
     - "MEMORY.md"
-  max_tokens: 32000
-  timeout_ms: 300000                # 5분
+  max_tokens: 64000
+  timeout_ms: 900000                # 15분
 
 # === 트리거 조건 ===
 triggers:

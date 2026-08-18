@@ -26,6 +26,7 @@
 #            [--timeout N] \
 #            [--dry-run]                  GAP_DETECTED 후속 결정 게이트: reviewer JSON → ask dispatch
 #   version                               버전 출력
+#   star [--force|--never]                별 링크 안내 (30일 쿨다운)
 #   help | --help | -h                    사용법
 #
 # 라이프사이클:
@@ -59,6 +60,9 @@ _lifecycle_exit() {
     "$HOOKS_SH" fire post "$_VERB" 2>/dev/null || true
     # skill-active 청소 (실패 무시)
     "$STATE_SH" clear skill-active 2>/dev/null || true
+    # 별 안내 — 성공했을 때만, 쿨다운 통과 시에만.
+    # (cmd_star 는 stderr 로 출력하므로 여기서 stderr 를 막으면 안 된다)
+    if [[ $rc -eq 0 ]]; then cmd_star || true; fi
   fi
   exit "$rc"
 }
@@ -1386,6 +1390,7 @@ Verbs:
       [--timeout N]
       [--dry-run]
   version                         버전 출력
+  star [--force|--never]          별 링크 안내 (30일 쿨다운, --never 로 영구 해제)
   help                            본 사용법
 
 Lifecycle:
@@ -1411,21 +1416,50 @@ USAGE
 
 # ──────────────────────────────────────────────
 # 버전 체크 — GitHub Releases API, 하루 1회 캐시
+#
+# 비교는 문자열이 아니라 semver 숫자로 한다. 문자열 비교(`!=`)로 하면
+#   (a) 로컬이 릴리스보다 앞설 때(개발 중) 영원히 잔소리하고
+#   (b) 1.9.0 vs 1.11.0 같은 자리수 차이를 틀리게 읽는다.
 # ──────────────────────────────────────────────
+
+# $1 > $2 이면 0. 숫자 필드별 비교.
+_semver_gt() {
+  local a="${1#v}" b="${2#v}"
+  [[ "$a" == "$b" ]] && return 1
+  a="${a%%-*}"; b="${b%%-*}"          # 프리릴리스 꼬리표 제거
+  local IFS=. i x y
+  local -a A=() B=()
+  read -r -a A <<<"$a"; read -r -a B <<<"$b"
+  for i in 0 1 2; do
+    x="${A[$i]:-0}"; y="${B[$i]:-0}"
+    [[ "$x" =~ ^[0-9]+$ ]] || return 1
+    [[ "$y" =~ ^[0-9]+$ ]] || return 1
+    (( x > y )) && return 0
+    (( x < y )) && return 1
+  done
+  return 1
+}
+
+_local_version() { cat "$SCRIPT_DIR/../../VERSION" 2>/dev/null || echo "0"; }
+
+_update_notice() {
+  local latest="$1" local_v="$2"
+  [[ -n "$latest" ]] || return 0
+  _semver_gt "$latest" "$local_v" || return 0
+  echo "📦 ohmyclaw $latest available (current $local_v) — update: cd \"$SCRIPT_DIR/../..\" && git pull" >&2
+}
+
 _check_update() {
   [[ "${OHMYCLAW_SKIP_UPDATE_CHECK:-0}" == "1" ]] && return 0
 
   local cache_file="${OHMYCLAW_HOME}/update-check.cache"
   local now_ts; now_ts=$(date +%s)
   local cache_ts=0
+  local local_v; local_v=$(_local_version)
 
   [[ -f "$cache_file" ]] && cache_ts=$(head -1 "$cache_file" 2>/dev/null || echo 0)
   if (( now_ts - cache_ts < 86400 )); then
-    local cached_latest; cached_latest=$(sed -n '2p' "$cache_file" 2>/dev/null || echo "")
-    local local_v; local_v=$(cat "$SCRIPT_DIR/../../VERSION" 2>/dev/null || echo "0")
-    if [[ -n "$cached_latest" && "$cached_latest" != "$local_v" ]]; then
-      echo "📦 ohmyclaw $cached_latest available (current $local_v) — update: cd \"$SCRIPT_DIR/../..\" && git pull" >&2
-    fi
+    _update_notice "$(sed -n '2p' "$cache_file" 2>/dev/null || echo "")" "$local_v"
     return 0
   fi
 
@@ -1439,10 +1473,53 @@ _check_update() {
   echo "${now_ts}" > "$cache_file"
   echo "${latest}" >> "$cache_file"
 
-  local local_v; local_v=$(cat "$SCRIPT_DIR/../../VERSION" 2>/dev/null || echo "0")
-  if [[ -n "$latest" && "$latest" != "$local_v" ]]; then
-    echo "📦 ohmyclaw $latest available (current $local_v) — update: cd \"$SCRIPT_DIR/../..\" && git pull" >&2
-  fi
+  _update_notice "$latest" "$local_v"
+}
+
+# ──────────────────────────────────────────────
+# 별(star) 안내
+#
+# 링크만 안내한다. 토큰을 읽거나 API 로 누르는 동작은 하지 않는다.
+# 조르지 않는다 — 30일 쿨다운, `ohmyclaw star --never` 로 영구 해제.
+# ──────────────────────────────────────────────
+STAR_URL="https://github.com/jkf87/ohmyclaw"
+STAR_COOLDOWN_SEC="${OHMYCLAW_STAR_COOLDOWN_SEC:-2592000}"   # 30일
+
+cmd_star() {
+  local star_file="${OHMYCLAW_HOME}/star-prompt.cache"
+  local now_ts; now_ts=$(date +%s)
+
+  case "${1:-}" in
+    --never)
+      mkdir -p "$OHMYCLAW_HOME"
+      printf 'never\n' > "$star_file"
+      echo "별 안내를 끕니다. 다시 보려면: ohmyclaw star --force"
+      return 0
+      ;;
+    --force) ;;
+    "")
+      # 자동 호출 경로 — 조건을 다 통과할 때만 보여준다.
+      # 대화형 터미널에서만. 파이프/리다이렉트/CI 로 출력이 기계에 읽힐 때는
+      # 홍보 문구를 끼워넣지 않는다 (파싱을 깨뜨린다).
+      [[ -t 2 ]] || return 0
+      [[ "${OHMYCLAW_SKIP_STAR_PROMPT:-0}" == "1" ]] && return 0
+      if [[ -f "$star_file" ]]; then
+        local first; first=$(head -1 "$star_file" 2>/dev/null || echo 0)
+        [[ "$first" == "never" ]] && return 0
+        [[ "$first" =~ ^[0-9]+$ ]] || first=0
+        (( now_ts - first < STAR_COOLDOWN_SEC )) && return 0
+      fi
+      ;;
+    *) echo "usage: ohmyclaw star [--force|--never]" >&2; return 2 ;;
+  esac
+
+  mkdir -p "$OHMYCLAW_HOME"
+  printf '%s\n' "$now_ts" > "$star_file"
+
+  echo "" >&2
+  echo "⭐ ohmyclaw 가 쓸만했다면 별 하나 눌러주세요 — 다른 사람이 찾는 데 도움이 됩니다." >&2
+  echo "   $STAR_URL" >&2
+  echo "   (그만 보기: ohmyclaw star --never)" >&2
 }
 
 # ──────────────────────────────────────────────
@@ -1452,6 +1529,9 @@ VERB="${1:-help}"; shift || true
 
 case "$VERB" in
   help|-h|--help) cmd_help ;;
+  star)
+    cmd_star "$@"
+    ;;
   doctor|route|pool|engine|state|hooks|cancel|ask|exec|interview|commands|plan-gate|gap-gate|version)
     _check_update
     _run_verb "$VERB" "$@"
