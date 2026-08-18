@@ -20,6 +20,7 @@
 #   ZAI_CODING_PLAN=lite|pro|max
 #   CODEX_OAUTH_ENABLED=true|false
 #   CLAUDECLI_DELEGATION_ENABLED=true|false
+#   ZAI_GLM53_ENABLED=true|false        glm-5.3 실험 오버레이 (기본 false)
 #   OPENROUTER_ENABLED=true|false
 #   OPENROUTER_PREFER_FREE=true|false      (기본: false, true 시 LOW/MEDIUM 작업에 무료 모델 우선)
 #   OPENROUTER_MODEL_OVERRIDE=<model-id>   (특정 OpenRouter 모델 강제 지정, --openrouter-model 과 동일)
@@ -47,6 +48,7 @@ CATEGORY="${2:-auto}"
 PLAN="${ZAI_CODING_PLAN:-pro}"
 CODEX="${CODEX_OAUTH_ENABLED:-false}"
 CLAUDECLI="${CLAUDECLI_DELEGATION_ENABLED:-false}"
+GLM53="${ZAI_GLM53_ENABLED:-false}"
 OPENROUTER="${OPENROUTER_ENABLED:-false}"
 PREFER_FREE="${OPENROUTER_PREFER_FREE:-false}"
 OPENROUTER_MODEL_OVERRIDE="${OPENROUTER_MODEL_OVERRIDE:-}"
@@ -235,6 +237,20 @@ fi
 if [[ -z "$PICKED" && "$CODEX" == "true" && "$REASONING_HEAVY" == "true" ]]; then
   PICKED="gpt-5.6-terra"
   REASON="reasoning_heavy + codex (P82, OMX frontier, ultra extended thinking)"
+fi
+
+# P83: glm-5.3 실험 오버레이 (명시 opt-in)
+#   OpenClaw 2026.7.1 zai 카탈로그에 glm-5.3 이 아직 없어서, 기본 활성화하면
+#   모델 해석이 실패한다. ZAI_GLM53_ENABLED=true 를 준 사용자만 탄다.
+#   P81 과 같은 조건(HIGH 또는 reasoning_heavy)에서 glm-5.2 대신 선택된다.
+if [[ -z "$PICKED" && "$GLM53" == "true" && "$PLAN" != "lite" ]] \
+   && [[ "$TIER" == "HIGH" || "$REASONING_HEAVY" == "true" ]]; then
+  case "$CATEGORY" in
+    coding_general|coding_arch|reasoning|debugging|security|data_analysis)
+      PICKED="glm-5.3"
+      REASON="glm53_overlay ${CATEGORY}/${TIER} (P83 experimental)"
+      ;;
+  esac
 fi
 
 # P81: reasoning_heavy + Pro/Max → glm-5.2 (차세대 플래그십, reasoning_score 최상위 glm)

@@ -98,13 +98,29 @@
     "glm-5.2": {
       "displayName": "GLM-5.2",
       "tier": "HIGH",
-      "contextWindow": 204800,
-      "maxTokens": 131100,
+      "contextWindow": 1000000,
+      "maxTokens": 131072,
+      "costPer1kInput": 1.4,
+      "costPer1kOutput": 4.4,
       "scores": { "coding": 97, "reasoning": 96, "korean": 97 },
       "reasoningMode": true,
       "anthropicAlias": "opus",
       "plans": ["pro", "max"],
       "note": "차세대 GLM 플래그십 — coding/reasoning HIGH 새 1순위. Lite 불가, select-model.sh 자동 강등. 하드 스펙은 공식 발표 전까지 GLM-5.1 미러링, scores 는 후속 우위 반영."
+    },
+    "glm-5.3": {
+      "displayName": "GLM-5.3",
+      "tier": "HIGH",
+      "contextWindow": 1000000,
+      "maxTokens": 131072,
+      "scores": { "coding": 98, "reasoning": 97, "korean": 97 },
+      "reasoningMode": true,
+      "defaultThinking": "max",
+      "anthropicAlias": "opus",
+      "plans": ["experimental"],
+      "experimental": true,
+      "requiresEnv": "ZAI_GLM53_ENABLED",
+      "note": "차세대 GLM. Artificial Analysis 가 2026-08-18 'GLM-5.3 (max)' 로 평가 등재. ⚠ OpenClaw 2026.7.1 zai 카탈로그에는 아직 없어(최신 glm-5.2) 지금 라우팅하면 모델 해석 실패한다. ZAI_GLM53_ENABLED=true 일 때만 활성. 하드 스펙은 카탈로그 등재 전까지 glm-5.2 미러링, scores 는 후속 우위 반영(추정치)."
     },
     "gpt-5.6-sol": {
       "displayName": "GPT-5.6 Sol",
@@ -366,6 +382,16 @@
       "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
       "security":         { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
     }
+  },
+
+  "thinkingPolicy": {
+    "comment": "reasoning effort(thinking level) 를 tier 로 결정한다. 지금까지 하네스는 effort 를 전혀 넘기지 않아 모델의 defaultThinking 이 그대로 적용됐다 — gpt-5.6-sol 은 기본이 low 라서 frontier 슬롯이 최저 사고량으로 돌고 있었다. 모델이 supportsUltra=false 면 max 로 자동 강등한다.",
+    "enabled": true,
+    "byTier": { "LOW": "low", "MEDIUM": "medium", "HIGH": "max" },
+    "reasoningHeavy": "ultra",
+    "suffixSyntax": "model[effort]",
+    "suffixSyntaxNote": "acpx 가 자체 help 에 문서화한 형태 (acpx codex set model 'gpt-5.2[high]'). spawn 시 --model 에도 동일하게 통하는지는 미검증이라 OHMYCLAW_THINKING_SUFFIX=true 일 때만 접미를 붙인다.",
+    "levels": ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
   },
 
   "codexOverlay": {

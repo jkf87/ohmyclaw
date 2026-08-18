@@ -323,6 +323,42 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
 
+## [1.15.0] — 2026-08-19
+
+### Added — thinking level(reasoning effort) 배선
+
+**하네스가 지금까지 effort 를 전혀 넘기지 않고 있었습니다.** `defaultThinking` 은 메타데이터일 뿐 실제로 모델에 전달되는 경로가 없었고, 그래서 각 모델의 기본값이 그대로 적용됐습니다 — **`gpt-5.6-sol` 은 기본 effort 가 `low` 라서 frontier 슬롯이 최저 사고량으로 돌고 있었습니다.**
+
+- `routing.json` 에 `thinkingPolicy` 추가 — tier 로 결정 (`LOW: low` / `MEDIUM: medium` / `HIGH: max`).
+- `engine.sh` 가 `model[effort]` 접미를 붙입니다. `OHMYCLAW_THINKING` 으로 직접 지정할 수 있습니다.
+- `supportsUltra: false` 인 모델(Luna, codex 런타임)은 `ultra` 요청 시 `max` 로 자동 강등합니다.
+
+> ⚠ **접미 문법은 `OHMYCLAW_THINKING_SUFFIX=true` 일 때만 적용됩니다(기본 off).** `model[effort]` 는 acpx 가 자체 help 에 문서화한 형태지만(`acpx codex set model 'gpt-5.2[high]'`), spawn 시 `--model` 에도 통하는지는 라이브 세션이 필요해 검증하지 못했습니다. 검증 전까지 기본 경로는 바꾸지 않습니다.
+
+### Added — GLM-5.3 (opt-in)
+
+Artificial Analysis 가 2026-08-18 자로 `GLM-5.3 (max)` 를 평가 등재했습니다.
+
+**⚠ OpenClaw 2026.7.1 의 zai 카탈로그에는 아직 없습니다**(최신이 `glm-5.2`). 기본 활성화하면 모델 해석에 실패하므로 `ZAI_GLM53_ENABLED=true` 일 때만 타는 P83 오버레이로 넣었습니다. 조건은 P81 과 같습니다 — HIGH tier 또는 reasoning_heavy, lite 플랜 제외, codex frontier 가 켜져 있으면 그쪽이 우선.
+
+하드 스펙은 카탈로그 등재 전까지 `glm-5.2` 미러링이고 `scores` 는 추정치입니다.
+
+### Fixed — GLM-5.2 컨텍스트 윈도우 5배 오류
+
+`204800` 으로 적혀 있었으나 실측은 **`1000000`** 입니다(`maxTokens` 도 `131100` → `131072`). openclaw 카탈로그(`provider-catalog-*.js`)에서 확인했으며 비용(`$1.4` / `$4.4`)도 함께 채웠습니다.
+
+### Fixed — jq `//` 가 `false` 를 삼키던 버그
+
+`.models[$m].supportsUltra // true` 는 `supportsUltra: false` 일 때 `true` 를 돌려줍니다. jq 의 `//` 는 `false` 를 빈 값으로 취급하기 때문입니다. `has()` 로 존재를 먼저 확인하도록 고쳤습니다 — 이게 없으면 Luna 의 ultra 강등이 영영 걸리지 않습니다.
+
+### Notes — `sol-max` / `terra-max` / `luna-max` 는 모델이 아닙니다
+
+Artificial Analysis 의 `(max)` 표기는 **reasoning effort 주석**입니다(같은 체인지로그의 `GLM-5.3 (max)`, `Gemini 3.7 Flash (low/medium/high)` 와 동일한 관례). OpenClaw 카탈로그의 실제 모델 ID 는 `gpt-5.6-sol` / `-terra` / `-luna` 셋뿐이며 `-max` 접미 ID 는 존재하지 않습니다. 따라서 모델을 추가하는 대신 위의 thinking level 배선으로 처리했습니다.
+
+### Tests
+
+`tests/glm53-thinking.bats` **+13**. 전체 **336 PASS / 0 FAIL**.
+
 ## [1.14.0] — 2026-08-19
 
 ### Added — sqlite 세션 스토어: 긴 작업 재개 (`session-store.sh`)

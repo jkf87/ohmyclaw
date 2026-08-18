@@ -123,6 +123,34 @@ cmd_resolve() {
   fi
   perm=$(perm_flag_for_role "$role")
 
+  # ── thinking level (reasoning effort) ──
+  # 하네스는 지금까지 effort 를 전혀 넘기지 않아 모델 기본값이 그대로 적용됐다.
+  # gpt-5.6-sol 은 기본이 low 라서 frontier 슬롯이 최저 사고량으로 돌고 있었다.
+  #
+  # 접미 문법 model[effort] 는 acpx 가 자체 help 에 문서화한 형태지만
+  # (acpx codex set model 'gpt-5.2[high]'), spawn 시 --model 에도 통하는지는
+  # 미검증이다. 따라서 OHMYCLAW_THINKING_SUFFIX=true 일 때만 붙인다.
+  local think model_arg="$model"
+  think="${OHMYCLAW_THINKING:-}"
+  if [[ -z "$think" ]] && [[ -n "$tier" ]]; then
+    think=$(jq -r --arg t "$tier" '
+      if (.thinkingPolicy.enabled // false) then (.thinkingPolicy.byTier[$t] // empty) else empty end
+    ' "$ROUTING_FILE" 2>/dev/null)
+  fi
+  # ultra 미지원 모델은 max 로 강등
+  if [[ "$think" == "ultra" ]]; then
+    local sup
+    # jq 의 `//` 는 false 를 빈 값으로 취급해 `false // true` 가 true 가 된다.
+    # supportsUltra:false 를 놓치지 않도록 has() 로 존재를 먼저 확인한다.
+    sup=$(jq -r --arg m "$model" '
+      (.models[$m] // {}) | if has("supportsUltra") then .supportsUltra else true end
+    ' "$ROUTING_FILE" 2>/dev/null)
+    [[ "$sup" == "false" ]] && think="max"
+  fi
+  if [[ -n "$think" ]] && [[ "${OHMYCLAW_THINKING_SUFFIX:-false}" == "true" ]]; then
+    model_arg="${model}[${think}]"
+  fi
+
   local fallback="${OHMYCLAW_ENGINE_FALLBACK:-true}"
   local chosen="" engine
   for engine in $candidates; do
@@ -145,12 +173,12 @@ cmd_resolve() {
       omp)
         local agent
         agent=$(jq -r '.engine.acpxAgents.omp.agent // "omp acp"' "$ROUTING_FILE")
-        cmd="acpx --agent \"$agent\" --model $model --cwd {{CWD}} $perm --format $fmt --timeout $timeout {{TASK}}"
+        cmd="acpx --agent \"$agent\" --model $model_arg --cwd {{CWD}} $perm --format $fmt --timeout $timeout {{TASK}}"
         ;;
       pi|codex|claude)
         local sub
         sub=$(jq -r --arg e "$chosen" '.engine.acpxAgents[$e].subcommand // $e' "$ROUTING_FILE")
-        cmd="acpx --model $model --cwd {{CWD}} $perm --format $fmt --timeout $timeout $sub {{TASK}}"
+        cmd="acpx --model $model_arg --cwd {{CWD}} $perm --format $fmt --timeout $timeout $sub {{TASK}}"
         ;;
     esac
   else
