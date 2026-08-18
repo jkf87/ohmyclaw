@@ -323,6 +323,41 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
 
+## [1.16.0] — 2026-08-19
+
+### Changed — thinking level 기본 활성화
+
+v1.15.0 에서 미검증을 이유로 꺼두었던 effort 접미를 **기본 활성**으로 돌립니다. HIGH 슬롯이 `max` 로 돌아갑니다 — 그동안 `gpt-5.6-sol` 은 기본값 `low` 로 실행되고 있었습니다.
+
+- **codex provider 에만 붙입니다.** `model[effort]` 는 codex-acp 가 advertise 하는 모델 ID 형태라 pi/omp(zai) 에 붙이면 모델 해석이 깨집니다. `glm-5.2[max]` 같은 잘못된 조합이 나가지 않도록 provider 로 제한했습니다.
+- 킬 스위치: `OHMYCLAW_THINKING_SUFFIX=false`
+- 레벨 직접 지정: `OHMYCLAW_THINKING=<level>`
+
+> ⚠ 이 머신에서는 `codex-acp` 브리지가 기동 실패(exit 1)라 라이브 호출로 최종 확인하지 못했습니다. 접미가 거부되면 `fallbackChain` 의 다음 모델로 강등됩니다.
+
+### Changed — GLM-5.3 정식 승격
+
+v1.15.0 의 opt-in 게이트(`ZAI_GLM53_ENABLED`)를 제거하고 기본 경로로 올렸습니다.
+
+- `matrix` 의 pro/max × `coding_arch` / `coding_general` / `reasoning` HIGH 슬롯이 `glm-5.3`
+- P81(reasoning_heavy) 이 `glm-5.2` → `glm-5.3`
+- `plans: ["pro", "max"]`, lite 는 P95 로 강등
+- codex frontier 가 켜져 있으면 여전히 그쪽이 우선
+
+**강등 경로를 반드시 유지합니다.** OpenClaw 2026.7.1 zai 카탈로그에는 `glm-5.3` 이 아직 없으므로(최신 `glm-5.2`), 모든 폴백 체인에서 `glm-5.3` 바로 뒤에 `glm-5.2` 가 오도록 배치했고 이를 테스트로 고정했습니다. 카탈로그 등재 전까지는 해석 실패 시 자동 강등에 의존합니다.
+
+### Fixed — 폴백 체인 중복 항목
+
+`glm-5.3` 삽입 과정에서 pro/max 의 `coding`·`korean`·`reasoning` 체인에 `glm-5.3` 이 두 번 들어가 있던 것을 제거했습니다(6곳). 중복 검사도 테스트에 추가했습니다.
+
+### Notes — 컨텍스트 1M
+
+`glm-5.2` 는 v1.15.0 에서 실측대로 `1000000` 으로 정정했고, `glm-5.3` 도 동일하게 `1000000` 입니다. `gpt-5.6` 계열은 `1050000` 입니다.
+
+### Tests
+
+`tests/glm53-thinking.bats` 16개로 확장(강등 경로·중복 검사·zai 접미 금지 포함), `tests/select-model.bats` 기대값을 glm-5.3 승격에 맞춰 갱신. 전체 **339 PASS / 0 FAIL**.
+
 ## [1.15.0] — 2026-08-19
 
 ### Added — thinking level(reasoning effort) 배선

@@ -127,9 +127,10 @@ cmd_resolve() {
   # 하네스는 지금까지 effort 를 전혀 넘기지 않아 모델 기본값이 그대로 적용됐다.
   # gpt-5.6-sol 은 기본이 low 라서 frontier 슬롯이 최저 사고량으로 돌고 있었다.
   #
-  # 접미 문법 model[effort] 는 acpx 가 자체 help 에 문서화한 형태지만
-  # (acpx codex set model 'gpt-5.2[high]'), spawn 시 --model 에도 통하는지는
-  # 미검증이다. 따라서 OHMYCLAW_THINKING_SUFFIX=true 일 때만 붙인다.
+  # 접미 문법 model[effort] 는 codex-acp 가 advertise 하는 모델 ID 형태다
+  # (acpx help 예시: acpx codex set model 'gpt-5.2[high]'). 기본 활성이며
+  # 문제 시 OHMYCLAW_THINKING_SUFFIX=false 로 즉시 끌 수 있다.
+  # 접미가 거부되면 fallbackChain 의 다음 모델로 강등된다.
   local think model_arg="$model"
   think="${OHMYCLAW_THINKING:-}"
   if [[ -z "$think" ]] && [[ -n "$tier" ]]; then
@@ -147,7 +148,11 @@ cmd_resolve() {
     ' "$ROUTING_FILE" 2>/dev/null)
     [[ "$sup" == "false" ]] && think="max"
   fi
-  if [[ -n "$think" ]] && [[ "${OHMYCLAW_THINKING_SUFFIX:-false}" == "true" ]]; then
+  # 접미는 codex-acp 가 advertise 하는 모델 ID 형태이므로 codex provider 에만 붙인다.
+  # pi/omp(zai) 는 이 문법을 모르므로 붙이면 모델 해석이 깨진다.
+  if [[ -n "$think" ]] \
+     && [[ "$provider" == "codex" ]] \
+     && [[ "${OHMYCLAW_THINKING_SUFFIX:-true}" == "true" ]]; then
     model_arg="${model}[${think}]"
   fi
 
