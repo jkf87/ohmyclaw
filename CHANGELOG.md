@@ -325,23 +325,41 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 
 ## [1.16.0] — 2026-08-19
 
-### Changed — thinking level 기본 활성화
+### Added — 실험 기능 토글 (`ohmyclaw experimental`)
 
-v1.15.0 에서 미검증을 이유로 꺼두었던 effort 접미를 **기본 활성**으로 돌립니다. HIGH 슬롯이 `max` 로 돌아갑니다 — 그동안 `gpt-5.6-sol` 은 기본값 `low` 로 실행되고 있었습니다.
+라이브 검증이 끝나지 않은 기능은 **기본 off** 로 두고, JSON 을 직접 고치지 않고 켜고 끌 수 있게 했습니다.
+
+```bash
+ohmyclaw experimental list             # 현재 상태
+ohmyclaw experimental enable glm53     # 영구 활성 (routing.json 갱신)
+ohmyclaw experimental disable glm53
+OHMYCLAW_GLM53=true ohmyclaw route ... # 일회 override (env 가 파일보다 우선)
+```
+
+| 기능 | env | 기본 | 켜면 |
+|---|---|---|---|
+| `thinkingSuffix` | `OHMYCLAW_THINKING_SUFFIX` | off | HIGH 슬롯이 `model[max]` 로 실행 |
+| `glm53` | `OHMYCLAW_GLM53` | off | pro/max HIGH 슬롯에 `glm-5.3` 사용 |
+
+`enable` 시 해당 기능의 리스크를 함께 출력합니다.
+
+### Changed — thinking level (기본 off)
+
+effort 접미를 켜면 HIGH 슬롯이 `max` 로 돌아갑니다 — 그동안 `gpt-5.6-sol` 은 기본값 `low` 로 실행되고 있었습니다. 다만 라이브 검증을 마치지 못해 **기본은 off** 이며 `ohmyclaw experimental enable thinkingSuffix` 로 켭니다.
 
 - **codex provider 에만 붙입니다.** `model[effort]` 는 codex-acp 가 advertise 하는 모델 ID 형태라 pi/omp(zai) 에 붙이면 모델 해석이 깨집니다. `glm-5.2[max]` 같은 잘못된 조합이 나가지 않도록 provider 로 제한했습니다.
-- 킬 스위치: `OHMYCLAW_THINKING_SUFFIX=false`
 - 레벨 직접 지정: `OHMYCLAW_THINKING=<level>`
 
 > ⚠ 이 머신에서는 `codex-acp` 브리지가 기동 실패(exit 1)라 라이브 호출로 최종 확인하지 못했습니다. 접미가 거부되면 `fallbackChain` 의 다음 모델로 강등됩니다.
 
-### Changed — GLM-5.3 정식 승격
+### Changed — GLM-5.3 (기본 off, 토글로 활성)
 
-v1.15.0 의 opt-in 게이트(`ZAI_GLM53_ENABLED`)를 제거하고 기본 경로로 올렸습니다.
+v1.15.0 의 `ZAI_GLM53_ENABLED` 게이트를 `experimental.glm53` 토글로 통합했습니다. 라우팅 표에는 정식 등재하되 **기본은 off** 이며, 꺼져 있으면 P94 게이트가 `glm-5.2` 로 강등합니다.
 
 - `matrix` 의 pro/max × `coding_arch` / `coding_general` / `reasoning` HIGH 슬롯이 `glm-5.3`
 - P81(reasoning_heavy) 이 `glm-5.2` → `glm-5.3`
 - `plans: ["pro", "max"]`, lite 는 P95 로 강등
+- 활성화: `ohmyclaw experimental enable glm53`
 - codex frontier 가 켜져 있으면 여전히 그쪽이 우선
 
 **강등 경로를 반드시 유지합니다.** OpenClaw 2026.7.1 zai 카탈로그에는 `glm-5.3` 이 아직 없으므로(최신 `glm-5.2`), 모든 폴백 체인에서 `glm-5.3` 바로 뒤에 `glm-5.2` 가 오도록 배치했고 이를 테스트로 고정했습니다. 카탈로그 등재 전까지는 해석 실패 시 자동 강등에 의존합니다.

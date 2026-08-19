@@ -5,24 +5,30 @@ load helpers
 
 REASON_TASK="분산 합의 알고리즘 정합성 증명과 lock-free 불변조건 검증 race condition 복잡도"
 
-setup() { unset CODEX_OAUTH_ENABLED OHMYCLAW_THINKING OHMYCLAW_THINKING_SUFFIX || true; }
+setup() { unset CODEX_OAUTH_ENABLED OHMYCLAW_THINKING OHMYCLAW_THINKING_SUFFIX OHMYCLAW_GLM53 || true; }
 
 # ──────────────────────────────────────────────
 # glm-5.3 — 기본 활성 (pro/max HIGH·reasoning)
 # ──────────────────────────────────────────────
-@test "glm-5.3 takes reasoning_heavy on pro" {
+@test "glm-5.3 is gated off by default" {
   run sm "$REASON_TASK" reasoning --plan=pro
+  [ "$status" -eq 0 ]
+  [ "$output" = "glm-5.2" ]
+}
+
+@test "glm-5.3 takes reasoning_heavy once enabled" {
+  OHMYCLAW_GLM53=true run sm "$REASON_TASK" reasoning --plan=pro
   [ "$status" -eq 0 ]
   [ "$output" = "glm-5.3" ]
 }
 
-@test "glm-5.3 is blocked on the lite plan" {
-  run sm "$REASON_TASK" reasoning --plan=lite
+@test "glm-5.3 is blocked on the lite plan even when enabled" {
+  OHMYCLAW_GLM53=true run sm "$REASON_TASK" reasoning --plan=lite
   [ "$output" != "glm-5.3" ]
 }
 
 @test "codex frontier still wins over glm-5.3" {
-  CODEX_OAUTH_ENABLED=true run sm "$REASON_TASK" reasoning --plan=pro
+  OHMYCLAW_GLM53=true CODEX_OAUTH_ENABLED=true run sm "$REASON_TASK" reasoning --plan=pro
   [[ "$output" =~ ^gpt-5\.6- ]]
 }
 
@@ -60,38 +66,37 @@ EOF"
 # ──────────────────────────────────────────────
 # thinking level
 # ──────────────────────────────────────────────
-@test "HIGH tier gets max thinking by default" {
+@test "thinking suffix is off by default" {
   run eg resolve gpt-5.6-sol "" executor
   [ "$status" -eq 0 ]
-  [[ "$output" == *"gpt-5.6-sol[max]"* ]]
-}
-
-@test "thinking suffix can be killed with the env switch" {
-  OHMYCLAW_THINKING_SUFFIX=false run eg resolve gpt-5.6-sol "" executor
-  [[ "$output" == *"--model gpt-5.6-sol "* ]]
   [[ "$output" != *"["* ]]
 }
 
+@test "HIGH tier gets max thinking once enabled" {
+  OHMYCLAW_THINKING_SUFFIX=true run eg resolve gpt-5.6-sol "" executor
+  [[ "$output" == *"gpt-5.6-sol[max]"* ]]
+}
+
 # 대괄호는 codex-acp 문법이다. zai(pi/omp) 에 붙이면 모델 해석이 깨진다.
-@test "no thinking suffix on zai models" {
-  run eg resolve glm-5.2 "" reviewer
+@test "no thinking suffix on zai models even when enabled" {
+  OHMYCLAW_THINKING_SUFFIX=true run eg resolve glm-5.2 "" reviewer
   [[ "$output" != *"["* ]]
 }
 
 @test "explicit OHMYCLAW_THINKING overrides tier policy" {
-  OHMYCLAW_THINKING=low run eg resolve gpt-5.6-sol "" executor
+  OHMYCLAW_THINKING_SUFFIX=true OHMYCLAW_THINKING=low run eg resolve gpt-5.6-sol "" executor
   [[ "$output" == *"gpt-5.6-sol[low]"* ]]
 }
 
 # supportsUltra:false 를 jq 의 `//` 가 삼키던 버그의 회귀 방지
 @test "ultra downgrades to max on models without ultra support" {
-  OHMYCLAW_THINKING=ultra run eg resolve gpt-5.6-luna "" executor
+  OHMYCLAW_THINKING_SUFFIX=true OHMYCLAW_THINKING=ultra run eg resolve gpt-5.6-luna "" executor
   [[ "$output" == *"gpt-5.6-luna[max]"* ]]
   [[ "$output" != *"[ultra]"* ]]
 }
 
 @test "ultra is preserved on models that support it" {
-  OHMYCLAW_THINKING=ultra run eg resolve gpt-5.6-sol "" executor
+  OHMYCLAW_THINKING_SUFFIX=true OHMYCLAW_THINKING=ultra run eg resolve gpt-5.6-sol "" executor
   [[ "$output" == *"gpt-5.6-sol[ultra]"* ]]
 }
 
@@ -111,4 +116,24 @@ EOF"
     [ "$ctx" = "1050000" ]
     [ "$tok" = "128000" ]
   done
+}
+
+# ──────────────────────────────────────────────
+# experimental 토글
+# ──────────────────────────────────────────────
+@test "experimental features are all off by default" {
+  run jq -r '[.experimental | to_entries[] | select(.key!="comment") | .value.enabled] | any' "$SKILL_DIR/routing.json"
+  [ "$output" = "false" ]
+}
+
+@test "experimental list shows both toggles" {
+  run "$SKILL_DIR/cli.sh" experimental list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"thinkingSuffix"* ]]
+  [[ "$output" == *"glm53"* ]]
+}
+
+@test "experimental rejects an unknown feature" {
+  run "$SKILL_DIR/cli.sh" experimental enable bogus
+  [ "$status" -ne 0 ]
 }

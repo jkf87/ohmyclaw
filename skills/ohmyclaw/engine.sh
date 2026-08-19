@@ -150,9 +150,15 @@ cmd_resolve() {
   fi
   # 접미는 codex-acp 가 advertise 하는 모델 ID 형태이므로 codex provider 에만 붙인다.
   # pi/omp(zai) 는 이 문법을 모르므로 붙이면 모델 해석이 깨진다.
+  # 기본 off. routing.json 의 experimental.thinkingSuffix.enabled 또는
+  # OHMYCLAW_THINKING_SUFFIX=true 로 켠다 (env 가 파일보다 우선).
+  local think_on
+  think_on=$(jq -r '.experimental.thinkingSuffix.enabled // false' "$ROUTING_FILE" 2>/dev/null)
+  [[ -n "${OHMYCLAW_THINKING_SUFFIX:-}" ]] && think_on="$OHMYCLAW_THINKING_SUFFIX"
+
   if [[ -n "$think" ]] \
      && [[ "$provider" == "codex" ]] \
-     && [[ "${OHMYCLAW_THINKING_SUFFIX:-true}" == "true" ]]; then
+     && [[ "$think_on" == "true" ]]; then
     model_arg="${model}[${think}]"
   fi
 

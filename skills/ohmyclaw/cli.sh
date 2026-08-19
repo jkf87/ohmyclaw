@@ -27,6 +27,7 @@
 #            [--dry-run]                  GAP_DETECTED 후속 결정 게이트: reviewer JSON → ask dispatch
 #   version                               버전 출력
 #   star [--force|--never]                별 링크 안내 (30일 쿨다운)
+#   experimental [list|enable|disable]    실험 기능 on/off
 #   help | --help | -h                    사용법
 #
 # 라이프사이클:
@@ -1391,6 +1392,8 @@ Verbs:
       [--dry-run]
   version                         버전 출력
   star [--force|--never]          별 링크 안내 (30일 쿨다운, --never 로 영구 해제)
+  experimental [list|enable <n>|disable <n>]
+                                  실험 기능 on/off (기본 전부 off)
   help                            본 사용법
 
 Lifecycle:
@@ -1523,6 +1526,47 @@ cmd_star() {
 }
 
 # ──────────────────────────────────────────────
+# experimental — 라이브 검증이 끝나지 않은 기능의 on/off
+#   routing.json 을 직접 고치지 않고 토글한다.
+# ──────────────────────────────────────────────
+cmd_experimental() {
+  local routing="$SCRIPT_DIR/routing.json"
+  local action="${1:-list}" key="${2:-}"
+
+  case "$action" in
+    list|"")
+      echo "── ohmyclaw experimental ──"
+      jq -r '.experimental | to_entries[] | select(.key != "comment")
+             | "  \(.key)\t\(if .value.enabled then "ON " else "off" end)\t(\(.value.env))"' "$routing" \
+        | while IFS=$'\t' read -r k st env; do
+            local live="$st"
+            # env 가 설정돼 있으면 그쪽이 우선임을 표시
+            printf "  %-16s %-4s %s\n" "$k" "$st" "$env"
+          done
+      echo ""
+      echo "  켜기: ohmyclaw experimental enable <name>"
+      echo "  끄기: ohmyclaw experimental disable <name>"
+      echo "  일회: <ENV>=true ohmyclaw <verb>"
+      ;;
+    enable|disable)
+      [[ -n "$key" ]] || { echo "usage: ohmyclaw experimental $action <name>" >&2; return 2; }
+      if ! jq -e --arg k "$key" '.experimental[$k]' "$routing" >/dev/null 2>&1; then
+        echo "ERROR: 알 수 없는 실험 기능 '$key'" >&2
+        jq -r '.experimental | keys[] | select(. != "comment") | "  - " + .' "$routing" >&2
+        return 2
+      fi
+      local val="false"; [[ "$action" == "enable" ]] && val="true"
+      local tmp; tmp=$(mktemp)
+      jq --arg k "$key" --argjson v "$val" '.experimental[$k].enabled = $v' "$routing" > "$tmp" \
+        && mv "$tmp" "$routing"
+      echo "experimental.$key = $val"
+      [[ "$val" == "true" ]] && jq -r --arg k "$key" '"  ⚠ " + .experimental[$k].why' "$routing"
+      ;;
+    *) echo "usage: ohmyclaw experimental [list|enable <name>|disable <name>]" >&2; return 2 ;;
+  esac
+}
+
+# ──────────────────────────────────────────────
 # 디스패치
 # ──────────────────────────────────────────────
 VERB="${1:-help}"; shift || true
@@ -1531,6 +1575,9 @@ case "$VERB" in
   help|-h|--help) cmd_help ;;
   star)
     cmd_star "$@"
+    ;;
+  experimental)
+    cmd_experimental "$@"
     ;;
   doctor|route|pool|engine|state|hooks|cancel|ask|exec|interview|commands|plan-gate|gap-gate|version)
     _check_update

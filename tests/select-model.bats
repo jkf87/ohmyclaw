@@ -21,7 +21,7 @@ teardown() {
   [ "$output" = "glm-5" ]
 }
 
-@test "matrix pro coding_general HIGH -> glm-5.3 or gpt-5.x" {
+@test "matrix pro coding_general HIGH -> glm-5.x or gpt-5.x" {
   run sm "복잡한 트랜잭션 처리 + 동시성 + 분산 시스템 + 캐시 무효화 + 멀티 테넌시 + 마이크로서비스 + race condition + state machine + invariant + algorithm" coding_general --plan=pro
   [ "$status" -eq 0 ]
   [[ "$output" == "glm-5.3" || "$output" == "glm-5.2" || "$output" =~ ^gpt-5\. ]]
@@ -46,16 +46,16 @@ teardown() {
   [[ "$output" =~ ^glm- ]]
 }
 
-@test "P81 reasoning_heavy + pro -> glm-5.3" {
+@test "P81 reasoning_heavy + pro -> glm-5.2 (glm53 gated off)" {
   run sm "분산 합의 정합성 증명 invariant" reasoning --plan=pro
   [ "$status" -eq 0 ]
-  [ "$output" = "glm-5.3" ]
+  [ "$output" = "glm-5.2" ]
 }
 
-@test "P81 reasoning_heavy + max -> glm-5.3" {
+@test "P81 reasoning_heavy + max -> glm-5.2 (glm53 gated off)" {
   run sm "lock-free 알고리즘 정합성 증명" reasoning --plan=max
   [ "$status" -eq 0 ]
-  [ "$output" = "glm-5.3" ]
+  [ "$output" = "glm-5.2" ]
 }
 
 @test "P82 reasoning_heavy + codex -> gpt-5.x" {
