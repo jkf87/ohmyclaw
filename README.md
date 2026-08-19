@@ -37,6 +37,9 @@ ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
 /ohmyclaw ralph <작업>              — 통과까지 루프
 /ohmyclaw debug <작업>              — 디버깅
 /ohmyclaw interview [주제]          — Socratic 명확화 인터뷰
+/omc_experimental [list|enable|disable <name>]
+                                   — 실험 기능 on/off
+/omc_star [--status|--never]        — 저장소 별 링크 안내
 ```
 
 ### 긴 작업 재개
@@ -56,7 +59,7 @@ $S status <세션ID>
 
 라이브 검증이 끝나지 않은 기능은 기본 비활성이며, 설정 파일을 직접 고치지 않고 켜고 끕니다.
 
-셸에서 실행합니다 (슬래시 명령이 아닙니다):
+챗에서는 `/omc_experimental`, 셸에서는 `cli.sh` 로 실행합니다:
 
 ```bash
 C=~/.openclaw/skills/ohmyclaw/cli.sh
@@ -118,6 +121,9 @@ ln -sfn "$(pwd)/ohmyclaw/skills/ohmyclaw" ~/.openclaw/skills/ohmyclaw
 /ohmyclaw ralph <task>             — loop until pass
 /ohmyclaw debug <task>             — debugging
 /ohmyclaw interview [topic]        — Socratic clarification interview
+/omc_experimental [list|enable|disable <name>]
+                                   — toggle experimental features
+/omc_star [--status|--never]       — repo star link
 ```
 
 ### Resuming long runs
@@ -137,7 +143,7 @@ Recording happens only when `OHMYCLAW_SESSION_ID` is set. Leave it unset and beh
 
 Features that have not completed live verification ship disabled, and toggle without editing config by hand.
 
-Run from a shell (these are not slash commands):
+From chat use `/omc_experimental`; from a shell use `cli.sh`:
 
 ```bash
 C=~/.openclaw/skills/ohmyclaw/cli.sh

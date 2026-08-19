@@ -323,6 +323,43 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
 
+## [1.17.0] — 2026-08-19
+
+### Added — `/omc_experimental` · `/omc_star` 슬래시 명령
+
+실험 기능 토글과 별 안내를 챗(Telegram/Discord)에서도 쓸 수 있게 `commands.json` 에 등록했습니다.
+
+```
+/omc_experimental list
+/omc_experimental enable thinkingSuffix
+/omc_star --status
+```
+
+### Fixed — 별 안내가 챗에서 아무것도 출력하지 않던 문제
+
+v1.16.0 의 `cmd_star` 는 TTY 가 없으면 조용히 넘어갔습니다. 파이프·CI 출력을 오염시키지 않으려는 의도였지만, **챗 슬래시 명령에도 TTY 가 없어서 `/omc_star` 가 빈 응답이 됐습니다.**
+
+명시 호출과 자동 호출을 분리했습니다.
+
+| 호출 | 조건 | 출력 |
+|---|---|---|
+| `star` / `--force` (사용자가 직접) | 없음 — 항상 출력 | stdout |
+| `--auto` (작업 성공 후 자동) | TTY + 쿨다운 + skip-env | stderr |
+
+`--status` 를 추가해 별 안내를 띄우지 않고 상태만 확인할 수 있습니다.
+
+### Fixed — 존재하지 않는 `ohmyclaw` 명령을 안내하던 문서
+
+README·릴리스 노트·`experimental list` 출력이 모두 `ohmyclaw <verb>` 를 안내했으나 **그런 실행 파일은 PATH 에 없습니다** — `install.sh` 는 스킬 디렉토리만 심볼릭 링크합니다. 실제 경로(`~/.openclaw/skills/ohmyclaw/cli.sh`)와 챗 슬래시 명령으로 정정하고, 자주 쓰는 경우를 위한 alias 를 안내합니다.
+
+### Docs
+
+README 에 **긴 작업 재개**, **실험 기능 토글**, **끄는 스위치** 섹션을 한/영으로 추가했습니다.
+
+### Tests
+
+`tests/star-update.bats` 21개로 확장. 자동 경로는 의사터미널(`script`)로 실제 TTY 조건에서 검증합니다. 전체 **351 PASS / 0 FAIL**.
+
 ## [1.16.0] — 2026-08-19
 
 ### Added — 실험 기능 토글 (`ohmyclaw experimental`)

@@ -63,7 +63,7 @@ _lifecycle_exit() {
     "$STATE_SH" clear skill-active 2>/dev/null || true
     # 별 안내 — 성공했을 때만, 쿨다운 통과 시에만.
     # (cmd_star 는 stderr 로 출력하므로 여기서 stderr 를 막으면 안 된다)
-    if [[ $rc -eq 0 ]]; then cmd_star || true; fi
+    if [[ $rc -eq 0 ]]; then cmd_star --auto || true; fi
   fi
   exit "$rc"
 }
@@ -1491,19 +1491,31 @@ STAR_COOLDOWN_SEC="${OHMYCLAW_STAR_COOLDOWN_SEC:-2592000}"   # 30일
 cmd_star() {
   local star_file="${OHMYCLAW_HOME}/star-prompt.cache"
   local now_ts; now_ts=$(date +%s)
+  # 자동 경로는 stderr(사람 눈), 명시 호출은 stdout(챗/파이프로 전달)
+  local out=1
 
   case "${1:-}" in
     --never)
       mkdir -p "$OHMYCLAW_HOME"
       printf 'never\n' > "$star_file"
-      echo "별 안내를 끕니다. 다시 보려면: ohmyclaw star --force"
+      echo "별 안내를 끕니다. 다시 보려면: cli.sh star --force"
       return 0
       ;;
-    --force) ;;
-    "")
-      # 자동 호출 경로 — 조건을 다 통과할 때만 보여준다.
+    --status)
+      if [[ -f "$star_file" ]]; then
+        local f; f=$(head -1 "$star_file" 2>/dev/null || echo 0)
+        [[ "$f" == "never" ]] && { echo "별 안내: 영구 해제됨"; return 0; }
+        echo "별 안내: 활성 (마지막 표시 $(( (now_ts - f) / 86400 ))일 전)"
+      else
+        echo "별 안내: 활성 (표시 이력 없음)"
+      fi
+      return 0
+      ;;
+    --auto)
+      # 작업 성공 뒤 자동 호출 — 조건을 다 통과할 때만 보여준다.
       # 대화형 터미널에서만. 파이프/리다이렉트/CI 로 출력이 기계에 읽힐 때는
       # 홍보 문구를 끼워넣지 않는다 (파싱을 깨뜨린다).
+      out=2
       [[ -t 2 ]] || return 0
       [[ "${OHMYCLAW_SKIP_STAR_PROMPT:-0}" == "1" ]] && return 0
       if [[ -f "$star_file" ]]; then
@@ -1513,16 +1525,22 @@ cmd_star() {
         (( now_ts - first < STAR_COOLDOWN_SEC )) && return 0
       fi
       ;;
-    *) echo "usage: ohmyclaw star [--force|--never]" >&2; return 2 ;;
+    ""|--force)
+      # 사용자가 직접 부른 경우 — TTY/쿨다운과 무관하게 항상 보여준다.
+      # (챗 슬래시 명령에는 TTY 가 없다)
+      ;;
+    *) echo "usage: cli.sh star [--force|--never|--status]" >&2; return 2 ;;
   esac
 
   mkdir -p "$OHMYCLAW_HOME"
   printf '%s\n' "$now_ts" > "$star_file"
 
-  echo "" >&2
-  echo "⭐ ohmyclaw 가 쓸만했다면 별 하나 눌러주세요 — 다른 사람이 찾는 데 도움이 됩니다." >&2
-  echo "   $STAR_URL" >&2
-  echo "   (그만 보기: ohmyclaw star --never)" >&2
+  {
+    echo ""
+    echo "⭐ ohmyclaw 가 쓸만했다면 별 하나 눌러주세요 — 다른 사람이 찾는 데 도움이 됩니다."
+    echo "   $STAR_URL"
+    echo "   (그만 보기: cli.sh star --never)"
+  } >&$out
 }
 
 # ──────────────────────────────────────────────
@@ -1537,16 +1555,14 @@ cmd_experimental() {
     list|"")
       echo "── ohmyclaw experimental ──"
       jq -r '.experimental | to_entries[] | select(.key != "comment")
-             | "  \(.key)\t\(if .value.enabled then "ON " else "off" end)\t(\(.value.env))"' "$routing" \
+             | "  \(.key)\t\(if .value.enabled then "ON " else "off" end)\t\(.value.env)"' "$routing" \
         | while IFS=$'\t' read -r k st env; do
-            local live="$st"
-            # env 가 설정돼 있으면 그쪽이 우선임을 표시
             printf "  %-16s %-4s %s\n" "$k" "$st" "$env"
           done
       echo ""
-      echo "  켜기: ohmyclaw experimental enable <name>"
-      echo "  끄기: ohmyclaw experimental disable <name>"
-      echo "  일회: <ENV>=true ohmyclaw <verb>"
+      echo "  셸  : $SCRIPT_DIR/cli.sh experimental enable|disable <name>"
+      echo "  챗  : /omc_experimental enable|disable <name>"
+      echo "  일회: <ENV>=true <cli.sh|/omc_*> <verb>"
       ;;
     enable|disable)
       [[ -n "$key" ]] || { echo "usage: ohmyclaw experimental $action <name>" >&2; return 2; }
@@ -1573,11 +1589,14 @@ VERB="${1:-help}"; shift || true
 
 case "$VERB" in
   help|-h|--help) cmd_help ;;
-  star)
-    cmd_star "$@"
-    ;;
-  experimental)
-    cmd_experimental "$@"
+  star|experimental)
+    # 라이프사이클 훅 없이 직접 실행 (설정 조회/변경이라 가볍다).
+    # 챗 슬래시 명령도 이 경로로 들어온다 — TTY 가 없어도 출력돼야 하므로
+    # cmd_star 는 --auto 없이 호출한다.
+    case "$VERB" in
+      star)         cmd_star         "$@" ;;
+      experimental) cmd_experimental "$@" ;;
+    esac
     ;;
   doctor|route|pool|engine|state|hooks|cancel|ask|exec|interview|commands|plan-gate|gap-gate|version)
     _check_update

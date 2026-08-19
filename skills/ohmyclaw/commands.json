@@ -5,56 +5,101 @@
   "commands": [
     {
       "command": "omc_interview",
-      "aliases": ["interview", "ohmyclaw interview"],
+      "aliases": [
+        "interview",
+        "ohmyclaw interview"
+      ],
       "verb": "interview",
       "description": "🦞 Socratic 인터뷰 — 요구사항을 버튼으로 구체화",
       "args": "<topic>"
     },
     {
       "command": "omc_ask",
-      "aliases": ["ask", "ohmyclaw ask"],
+      "aliases": [
+        "ask",
+        "ohmyclaw ask"
+      ],
       "verb": "ask",
       "description": "선택지 버튼 질문 보내기",
       "args": "--question <Q> --option N:label ..."
     },
     {
       "command": "omc_exec",
-      "aliases": ["exec", "ohmyclaw exec"],
+      "aliases": [
+        "exec",
+        "ohmyclaw exec"
+      ],
       "verb": "exec",
       "description": "모호성 게이트 + 모델 라우팅 실행",
       "args": "<task>"
     },
     {
       "command": "omc_route",
-      "aliases": ["route", "ohmyclaw route"],
+      "aliases": [
+        "route",
+        "ohmyclaw route"
+      ],
       "verb": "route",
       "description": "작업에 맞는 모델 라우팅",
       "args": "<task>"
     },
     {
       "command": "omc_pool",
-      "aliases": ["pool", "ohmyclaw pool"],
+      "aliases": [
+        "pool",
+        "ohmyclaw pool"
+      ],
       "verb": "pool",
       "description": "계정 풀 상태 보기",
       "args": "status"
     },
     {
       "command": "omc_doctor",
-      "aliases": ["doctor", "ohmyclaw doctor"],
+      "aliases": [
+        "doctor",
+        "ohmyclaw doctor"
+      ],
       "verb": "doctor",
       "description": "엔진/state/hooks 전체 점검",
       "args": ""
     },
     {
       "command": "omc_cancel",
-      "aliases": ["cancel", "ohmyclaw cancel"],
+      "aliases": [
+        "cancel",
+        "ohmyclaw cancel"
+      ],
       "verb": "cancel",
       "description": "라이프사이클 정리 (진행 작업 취소)",
       "args": "[--force]"
     },
     {
+      "command": "omc_experimental",
+      "aliases": [
+        "experimental",
+        "ohmyclaw experimental",
+        "실험기능"
+      ],
+      "verb": "experimental",
+      "description": "🧪 실험 기능 on/off (기본 전부 off)",
+      "args": "[list|enable <name>|disable <name>]"
+    },
+    {
+      "command": "omc_star",
+      "aliases": [
+        "star",
+        "ohmyclaw star"
+      ],
+      "verb": "star",
+      "description": "⭐ 저장소 별 링크 안내",
+      "args": "[--status|--never|--force]"
+    },
+    {
       "command": "omc_menu",
-      "aliases": ["menu", "ohmyclaw menu"],
+      "aliases": [
+        "menu",
+        "ohmyclaw menu"
+      ],
       "verb": "__menu__",
       "description": "명령어 팔레트를 버튼으로 표시",
       "args": ""
