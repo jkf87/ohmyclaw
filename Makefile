@@ -30,7 +30,9 @@ lint: syntax
 	  echo "→ shellcheck"; \
 	  shellcheck -S warning $(SKILL)/*.sh || exit 1; \
 	else \
-	  echo "  (shellcheck absent — bash -n only)"; \
+	  echo "  ⚠ shellcheck 미설치 — bash -n 만 수행했습니다."; \
+	  echo "    CI 는 shellcheck 를 돌리므로 여기서 통과해도 CI 에서 실패할 수 있습니다."; \
+	  echo "    설치: brew install shellcheck (또는 apt install shellcheck)"; \
 	fi
 
 schema:

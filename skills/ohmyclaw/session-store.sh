@@ -366,6 +366,7 @@ action_status() {
   echo "── 세션 ${sid} ──"
   echo "  상태      : ${st}  (mode=${mode}, 재개 ${rc}회)"
   echo "  목표      : ${goal:-(없음)}"
+  echo "  시작      : $(( ($(_now) - created) / 60 ))분 전"
   echo "  마지막 신호: $(( $(_now) - hb ))초 전"
   echo "  체크포인트:"
   _sql -noheader -separator '  ' \

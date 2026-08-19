@@ -55,7 +55,8 @@ cmd_init() {
     [[ -z "$cleaned" ]] && continue
     [[ ${#cleaned} -gt 1200 ]] && continue
 
-    local gid="G$(printf '%03d' $((idx+1)))"
+    local gid
+    gid="G$(printf '%03d' $((idx+1)))"
     local goal_json
     goal_json=$(jq -n \
       --arg id "$gid" \
