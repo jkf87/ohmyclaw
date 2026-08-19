@@ -133,11 +133,14 @@ action_agent_start() {
     ensure_state
     
     # agents 객체에 에이전트 추가
-    local timestamp=$(now_iso)
-    local epoch=$(now_epoch)
+    local timestamp
+    timestamp=$(now_iso)
+    local epoch
+    epoch=$(now_epoch)
     
     # 간단 JSON 조작 (jq 없이)
-    local tmp_file=$(mktemp)
+    local tmp_file
+    tmp_file=$(mktemp)
     # 기존 상태의 agents 섹션에 새 에이전트 추가
     python3 -c "
 import json, sys
@@ -164,7 +167,8 @@ with open('${tmp_file}', 'w') as f:
     
     mv "$tmp_file" "${BRIDGE_STATE}"
     
-    local total=$(python3 -c "import json; d=json.load(open('${BRIDGE_STATE}')); print(d['progress']['total'])" 2>/dev/null || echo "?")
+    local total
+    total=$(python3 -c "import json; d=json.load(open('${BRIDGE_STATE}')); print(d['progress']['total'])" 2>/dev/null || echo "?")
     echo "AGENT_START: ${agent_id} (model=${model}, total=${total})"
 }
 
@@ -177,9 +181,12 @@ action_complete() {
     
     ensure_state
     
-    local timestamp=$(now_iso)
-    local epoch=$(now_epoch)
-    local tmp_file=$(mktemp)
+    local timestamp
+    timestamp=$(now_iso)
+    local epoch
+    epoch=$(now_epoch)
+    local tmp_file
+    tmp_file=$(mktemp)
     
     python3 -c "
 import json, sys
@@ -249,9 +256,12 @@ action_fail() {
     
     ensure_state
     
-    local timestamp=$(now_iso)
-    local epoch=$(now_epoch)
-    local tmp_file=$(mktemp)
+    local timestamp
+    timestamp=$(now_iso)
+    local epoch
+    epoch=$(now_epoch)
+    local tmp_file
+    tmp_file=$(mktemp)
     
     python3 -c "
 import json, sys
@@ -271,6 +281,7 @@ agent['status'] = 'failed'
 agent['completed_at'] = '${timestamp}'
 agent['elapsed_sec'] = elapsed
 agent['error'] = '''${error}'''
+agent['error_log'] = '''${error_log}''' or None
 state['progress']['total'] = len(state['agents'])
 state['progress']['failed'] = sum(1 for a in state['agents'].values() if a['status'] == 'failed')
 state['progress']['completed'] = sum(1 for a in state['agents'].values() if a['status'] in ('completed', 'failed'))
@@ -308,8 +319,10 @@ action_gap_detected() {
     
     ensure_state
     
-    local timestamp=$(now_iso)
-    local tmp_file=$(mktemp)
+    local timestamp
+    timestamp=$(now_iso)
+    local tmp_file
+    tmp_file=$(mktemp)
     
     python3 -c "
 import json
@@ -357,9 +370,12 @@ action_gap_fix_start() {
     
     ensure_state
     
-    local timestamp=$(now_iso)
-    local epoch=$(now_epoch)
-    local tmp_file=$(mktemp)
+    local timestamp
+    timestamp=$(now_iso)
+    local epoch
+    epoch=$(now_epoch)
+    local tmp_file
+    tmp_file=$(mktemp)
     
     python3 -c "
 import json
@@ -405,7 +421,8 @@ with open('${tmp_file}', 'w') as f:
 action_batch() {
     ensure_state
     
-    local tmp_file=$(mktemp)
+    local tmp_file
+    tmp_file=$(mktemp)
     python3 -c "
 import json
 with open('${BRIDGE_STATE}', 'r') as f:
@@ -486,7 +503,8 @@ action_bridge_error() {
     
     ensure_state
     
-    local tmp_file=$(mktemp)
+    local tmp_file
+    tmp_file=$(mktemp)
     python3 -c "
 import json
 with open('${BRIDGE_STATE}', 'r') as f:

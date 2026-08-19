@@ -154,8 +154,11 @@ else
 fi
 
 if [[ -d "${HOME}/.openclaw" ]]; then
+    # 아래 물결표는 경로가 아니라 사람이 읽는 표시 문자열이다 (검사는 위의 ${HOME} 사용)
+    # shellcheck disable=SC2088
     check_pass "~/.openclaw/ 디렉토리 존재"
 else
+    # shellcheck disable=SC2088
     check_warn "~/.openclaw/ 디렉토리 없음 — OpenClaw 미설치 가능성"
 fi
 
@@ -173,7 +176,6 @@ echo "[6/7] 브릿지 검사"
 
 BRIDGE_SCRIPT="${HARNESS_DIR}/scripts/bridge.sh"
 BRIDGE_AGENT="${HARNESS_DIR}/agents/bridge.md"
-BRIDGE_STATE_DIR="${HARNESS_DIR}/state"
 
 if [[ -f "${BRIDGE_SCRIPT}" ]]; then
     if [[ -x "${BRIDGE_SCRIPT}" ]]; then

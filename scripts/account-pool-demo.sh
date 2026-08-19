@@ -90,7 +90,7 @@ fi
 echo ""
 echo "[3/10] OAuth 라운드 로빈 (codex 풀, 4회 순환)"
 seen_p=0; seen_s=0
-for i in 1 2 3 4; do
+for _ in 1 2 3 4; do
     out=$(bash "${POOL}" next codex 2>/dev/null || true)
     acct=$(echo "$out" | grep 'account_id:' | sed 's/.*: //' | xargs)
     [[ "$acct" == "codex-primary" ]]   && seen_p=1
@@ -181,7 +181,7 @@ echo ""
 echo "[10/10] spawn-agent 통합 — codex 4회 호출 라운드 로빈"
 bash "${POOL}" reset >/dev/null
 seen_p=0; seen_s=0
-for i in 1 2 3 4; do
+for _ in 1 2 3 4; do
     out=$(bash "${SPAWN}" worker "test" gpt-5.4 2>/dev/null || true)
     echo "$out" | grep -q "account_id: codex-primary"   && seen_p=1
     echo "$out" | grep -q "account_id: codex-secondary" && seen_s=1

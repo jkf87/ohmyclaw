@@ -9,13 +9,12 @@ set -euo pipefail
 # 설정
 # ──────────────────────────────────────────────
 HARNESS_DIR="${HARNESS_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-ROUTING_DIR="${HARNESS_DIR}/routing"
-MODELS_FILE="${ROUTING_DIR}/models.yaml"
-RULES_FILE="${ROUTING_DIR}/routing-rules.yaml"
-BUDGET_FILE="${ROUTING_DIR}/budget-profiles.yaml"
 
 TASK_TEXT="${1:-}"
 CATEGORY="${2:-auto}"
+# 3번째 인자는 usage 에 남아 있으나 현재 라우팅 로직이 사용하지 않는다.
+# (플랜/예산 결정은 routing/plans.yaml 의 active_plan 이 담당)
+# shellcheck disable=SC2034  # CLI 호환을 위해 받기만 한다
 BUDGET_PROFILE="${3:-standard}"
 
 if [[ -z "$TASK_TEXT" ]]; then

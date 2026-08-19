@@ -1,7 +1,8 @@
 # ohmyclaw — robustness gates (P1-P7)
 # Usage: make test | make lint | make schema | make doctor | make ci
 
-SKILL := skills/ohmyclaw
+SKILL   := skills/ohmyclaw
+SCRIPTS := scripts
 BATS  ?= bats
 JQ    ?= jq
 AJV   ?= npx -y ajv-cli@5
@@ -23,12 +24,12 @@ help:
 
 syntax:
 	@echo "→ bash -n"
-	@for s in $(SKILL)/*.sh; do bash -n "$$s" && echo "  ✓ $$s" || exit 1; done
+	@for s in $(SKILL)/*.sh $(SCRIPTS)/*.sh; do bash -n "$$s" && echo "  ✓ $$s" || exit 1; done
 
 lint: syntax
 	@if command -v shellcheck >/dev/null 2>&1; then \
 	  echo "→ shellcheck"; \
-	  shellcheck -S warning $(SKILL)/*.sh || exit 1; \
+	  shellcheck -S warning $(SKILL)/*.sh $(SCRIPTS)/*.sh || exit 1; \
 	else \
 	  echo "  ⚠ shellcheck 미설치 — bash -n 만 수행했습니다."; \
 	  echo "    CI 는 shellcheck 를 돌리므로 여기서 통과해도 CI 에서 실패할 수 있습니다."; \

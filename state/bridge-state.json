@@ -1,19 +1,41 @@
 {
-  "cycle_id": "camera-stream",
+  "cycle_id": "cycle-20260819-205137",
   "mode": "full",
-  "phase": "COMPLETE",
-  "agents": {},
+  "phase": "IDLE",
+  "agents": {
+    "w1": {
+      "status": "completed",
+      "model": "unknown",
+      "started_at": "2026-08-19T11:51:37Z",
+      "started_epoch": 1787140297,
+      "completed_at": "2026-08-19T11:51:37Z",
+      "summary": "\uc644\ub8cc",
+      "error": null,
+      "elapsed_sec": 0
+    },
+    "w2": {
+      "status": "failed",
+      "model": "unknown",
+      "started_at": "2026-08-19T11:51:37Z",
+      "started_epoch": 1787140297,
+      "completed_at": "2026-08-19T11:51:37Z",
+      "summary": null,
+      "error": "\ube4c\ub4dc \uc2e4\ud328",
+      "elapsed_sec": 0,
+      "error_log": "/tmp/build-error.log"
+    }
+  },
   "progress": {
-    "completed": 0,
-    "total": 0,
-    "failed": 0
+    "completed": 2,
+    "total": 2,
+    "failed": 1
   },
   "notifications": {
-    "sent": 0,
+    "sent": 2,
     "failed": 0,
     "batched": 0
   },
   "bridge_errors": [],
   "phase_history": [],
-  "last_updated": "2026-03-29T03:54:00Z"
+  "last_updated": "2026-08-19T11:51:37Z"
 }

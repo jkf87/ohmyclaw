@@ -30,6 +30,8 @@ if [[ ! -f "$PLANS_FILE" ]]; then
 fi
 
 # active_plan 갱신
+# 명령 출력이 아니라 실행할 명령 이름을 담는다 (BSD/GNU sed 분기)
+# shellcheck disable=SC2209
 if command -v gsed >/dev/null 2>&1; then
   SED=gsed
 else
