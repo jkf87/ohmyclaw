@@ -82,7 +82,11 @@
               "korean":    { "type": "integer", "minimum": 0, "maximum": 100 }
             }
           },
-          "omxRole":         { "type": "string", "enum": ["frontier", "frontier-reasoning", "frontier-fast", "legacy", "deep-legacy"], "description": "score 없이 역할 라벨로 슬롯 결정 (OMX 호환 모델)." },
+          "omxRole":         { "type": "string", "enum": ["frontier", "balanced", "economy", "frontier-reasoning", "frontier-fast", "legacy", "deep-legacy"], "description": "score 없이 역할 라벨로 슬롯 결정 (OMX 호환 모델)." },
+          "defaultThinking": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"], "description": "모델의 기본 reasoning effort (실측)." },
+          "supportsUltra":   { "type": "boolean", "description": "codex 런타임에서 ultra thinking 지원 여부." },
+          "costPer1kInput":  { "type": "number", "minimum": 0 },
+          "costPer1kOutput": { "type": "number", "minimum": 0 },
           "reasoningMode":   { "type": "boolean" },
           "anthropicAlias":  { "type": "string" },
           "auth":            { "type": "string" },

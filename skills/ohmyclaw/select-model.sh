@@ -239,7 +239,7 @@ fi
 
 # P81: reasoning_heavy + Pro/Max → glm-5.2 (차세대 플래그십, reasoning_score 최상위 glm)
 if [[ -z "$PICKED" && "$REASONING_HEAVY" == "true" && "$PLAN" != "lite" ]]; then
-  PICKED="glm-5.2"
+  PICKED="glm-5.3"
   REASON="reasoning_heavy + ${PLAN} (P81)"
 fi
 
@@ -296,8 +296,20 @@ if [[ -z "$PICKED" ]]; then
   REASON="matrix[${PLAN}][${CATEGORY}][${TIER}]"
 fi
 
+# P94 glm53_gate: glm-5.3 이 비활성이면 glm-5.2 로 강등
+#   OpenClaw zai 카탈로그에 glm-5.3 이 등재되기 전까지 기본 off.
+#   routing.json experimental.glm53.enabled 또는 OHMYCLAW_GLM53=true 로 켠다.
+if [[ "$PICKED" == "glm-5.3" ]]; then
+  _glm53_on=$(jq -r '.experimental.glm53.enabled // false' "$ROUTING_FILE" 2>/dev/null)
+  [[ -n "${OHMYCLAW_GLM53:-}" ]] && _glm53_on="$OHMYCLAW_GLM53"
+  if [[ "$_glm53_on" != "true" ]]; then
+    PICKED="glm-5.2"
+    REASON="${REASON} → glm-5.2 (P94 glm53_gate: 미활성)"
+  fi
+fi
+
 # P95 plan_block: lite 에서 glm-5.1/glm-5.2 등장 시 강등
-if [[ "$PLAN" == "lite" && ( "$PICKED" == "glm-5.1" || "$PICKED" == "glm-5.2" ) ]]; then
+if [[ "$PLAN" == "lite" && ( "$PICKED" == "glm-5.1" || "$PICKED" == "glm-5.2" || "$PICKED" == "glm-5.3" ) ]]; then
   PICKED="glm-5"
   REASON="${REASON} → cap_for_lite"
 fi

@@ -33,7 +33,7 @@ stages:
   plan:
     agent: planner
     model_tier: HIGH
-    timeout_ms: 300000              # 5분
+    timeout_ms: 900000              # 15분 (체크포인트로 보호됨)
     input:
       - user_request
       - project_context
@@ -45,7 +45,7 @@ stages:
   work:
     agent: worker
     model_tier: MEDIUM
-    timeout_ms: 600000              # 10분
+    timeout_ms: 3600000             # 60분 — 긴 작업 본선. 중단돼도 체크포인트에서 재개
     input:
       - task_assignment
       - related_files
@@ -57,7 +57,7 @@ stages:
   work_parallel:
     agent: worker
     model_tier: MEDIUM
-    timeout_ms: 600000
+    timeout_ms: 3600000
     input:
       - task_assignment
       - related_files
@@ -71,7 +71,7 @@ stages:
   review:
     agent: reviewer
     model_tier: HIGH
-    timeout_ms: 300000              # 5분
+    timeout_ms: 900000              # 15분
     input:
       - diff
       - plan
@@ -136,6 +136,44 @@ concurrency:
     - if: "model == gpt-5.4 AND codex_oauth_enabled"
       max_workers: 3              # ChatGPT 구독 rate limit 보호
 
+# ══════════════════════════════════════════════════════════════
+# 내구성 — sqlite 세션 스토어 기반 체크포인트/재개
+#
+# 문제: work 단계가 길어지면 타임아웃/크래시로 통째로 날아갔다.
+#       재시도는 max:1 이고 처음부터 다시 시작이라 긴 작업일수록 완주 확률이 낮았다.
+# 해법: 단계·태스크 단위로 sqlite 에 커밋해두고, 중단 시 "남은 일" 만 재배정한다.
+#
+# loop guard(v1.12.0 deduper) 와는 다른 층이다 —
+#   deduper = 같은 툴콜 반복(폭주) 억제
+#   durability = 중단된 작업의 재개
+# ══════════════════════════════════════════════════════════════
+durability:
+  enabled: true
+  store: sqlite
+  script: "skills/ohmyclaw/session-store.sh"
+
+  heartbeat:
+    interval_sec: 60
+    stale_after_sec: 900            # 15분 무신호 → 재개 후보
+
+  checkpoint:
+    on_stage_enter: true
+    on_stage_exit: true
+    on_task_complete: true          # 재개 입도를 태스크 단위로 만드는 핵심
+    on_fix_iteration: true
+    payload_max_bytes: 65536        # 초과분은 state.sh 로 오프로드하고 참조만 저장
+
+  resume:
+    auto: true                      # 세션 시작 시 interrupted 자동 탐지
+    max_resumes: 5                  # 초과 시 escalate (무한 재개 방지)
+    reset_orphan_running: true      # running 상태로 죽은 태스크 → pending 회수
+    replay_done_tasks: false        # done 은 절대 재실행하지 않는다
+    on_exhaustion: escalate
+
+  retention:
+    gc_older_than_days: 30
+    keep_failed: true               # 실패 세션은 조사용으로 더 오래 남긴다
+
 # ──────────────────────────────────────────────
 # 실패 대응 정책
 # ──────────────────────────────────────────────
@@ -147,7 +185,8 @@ failure_policy:
       attempt_2: "접근 방식 변경"
       attempt_3: "중단 + 에스컬레이션 보고"
     circuit_breaker:
-      max_tool_calls: 50
+      max_tool_calls: 400           # 긴 작업 정상 동작 오탐 방지. 진짜 반복은
+                                    # v1.12.0 result-aware deduper(maxSame=50)가 잡는다
       consecutive_same: 5
 
   orchestrator_retry:
@@ -158,6 +197,10 @@ failure_policy:
       action: "실패 원인 포함하여 새 Worker spawn"
       model_upgrade: true
       max: 1
+    worker_timeout:
+      action: "체크포인트에서 재개 — 완료된 태스크는 건너뛴다"
+      resume_from_checkpoint: true
+      max: 5
     review_loop:
       max_fix_attempts: 3
       on_exhaustion: escalate

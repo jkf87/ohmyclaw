@@ -323,6 +323,172 @@ origin v1.3.0 (gpt-5.5 frontier routing) 이후의 누적 작업을 정식 릴�
 [1.1.0]: https://github.com/jkf87/ohmyclaw/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkf87/ohmyclaw/releases/tag/v1.0.0
 
+## [1.16.0] — 2026-08-19
+
+### Added — 실험 기능 토글 (`ohmyclaw experimental`)
+
+라이브 검증이 끝나지 않은 기능은 **기본 off** 로 두고, JSON 을 직접 고치지 않고 켜고 끌 수 있게 했습니다.
+
+```bash
+ohmyclaw experimental list             # 현재 상태
+ohmyclaw experimental enable glm53     # 영구 활성 (routing.json 갱신)
+ohmyclaw experimental disable glm53
+OHMYCLAW_GLM53=true ohmyclaw route ... # 일회 override (env 가 파일보다 우선)
+```
+
+| 기능 | env | 기본 | 켜면 |
+|---|---|---|---|
+| `thinkingSuffix` | `OHMYCLAW_THINKING_SUFFIX` | off | HIGH 슬롯이 `model[max]` 로 실행 |
+| `glm53` | `OHMYCLAW_GLM53` | off | pro/max HIGH 슬롯에 `glm-5.3` 사용 |
+
+`enable` 시 해당 기능의 리스크를 함께 출력합니다.
+
+### Changed — thinking level (기본 off)
+
+effort 접미를 켜면 HIGH 슬롯이 `max` 로 돌아갑니다 — 그동안 `gpt-5.6-sol` 은 기본값 `low` 로 실행되고 있었습니다. 다만 라이브 검증을 마치지 못해 **기본은 off** 이며 `ohmyclaw experimental enable thinkingSuffix` 로 켭니다.
+
+- **codex provider 에만 붙입니다.** `model[effort]` 는 codex-acp 가 advertise 하는 모델 ID 형태라 pi/omp(zai) 에 붙이면 모델 해석이 깨집니다. `glm-5.2[max]` 같은 잘못된 조합이 나가지 않도록 provider 로 제한했습니다.
+- 레벨 직접 지정: `OHMYCLAW_THINKING=<level>`
+
+> ⚠ 이 머신에서는 `codex-acp` 브리지가 기동 실패(exit 1)라 라이브 호출로 최종 확인하지 못했습니다. 접미가 거부되면 `fallbackChain` 의 다음 모델로 강등됩니다.
+
+### Changed — GLM-5.3 (기본 off, 토글로 활성)
+
+v1.15.0 의 `ZAI_GLM53_ENABLED` 게이트를 `experimental.glm53` 토글로 통합했습니다. 라우팅 표에는 정식 등재하되 **기본은 off** 이며, 꺼져 있으면 P94 게이트가 `glm-5.2` 로 강등합니다.
+
+- `matrix` 의 pro/max × `coding_arch` / `coding_general` / `reasoning` HIGH 슬롯이 `glm-5.3`
+- P81(reasoning_heavy) 이 `glm-5.2` → `glm-5.3`
+- `plans: ["pro", "max"]`, lite 는 P95 로 강등
+- 활성화: `ohmyclaw experimental enable glm53`
+- codex frontier 가 켜져 있으면 여전히 그쪽이 우선
+
+**강등 경로를 반드시 유지합니다.** OpenClaw 2026.7.1 zai 카탈로그에는 `glm-5.3` 이 아직 없으므로(최신 `glm-5.2`), 모든 폴백 체인에서 `glm-5.3` 바로 뒤에 `glm-5.2` 가 오도록 배치했고 이를 테스트로 고정했습니다. 카탈로그 등재 전까지는 해석 실패 시 자동 강등에 의존합니다.
+
+### Fixed — 폴백 체인 중복 항목
+
+`glm-5.3` 삽입 과정에서 pro/max 의 `coding`·`korean`·`reasoning` 체인에 `glm-5.3` 이 두 번 들어가 있던 것을 제거했습니다(6곳). 중복 검사도 테스트에 추가했습니다.
+
+### Notes — 컨텍스트 1M
+
+`glm-5.2` 는 v1.15.0 에서 실측대로 `1000000` 으로 정정했고, `glm-5.3` 도 동일하게 `1000000` 입니다. `gpt-5.6` 계열은 `1050000` 입니다.
+
+### Tests
+
+`tests/glm53-thinking.bats` 16개로 확장(강등 경로·중복 검사·zai 접미 금지 포함), `tests/select-model.bats` 기대값을 glm-5.3 승격에 맞춰 갱신. 전체 **339 PASS / 0 FAIL**.
+
+## [1.15.0] — 2026-08-19
+
+### Added — thinking level(reasoning effort) 배선
+
+**하네스가 지금까지 effort 를 전혀 넘기지 않고 있었습니다.** `defaultThinking` 은 메타데이터일 뿐 실제로 모델에 전달되는 경로가 없었고, 그래서 각 모델의 기본값이 그대로 적용됐습니다 — **`gpt-5.6-sol` 은 기본 effort 가 `low` 라서 frontier 슬롯이 최저 사고량으로 돌고 있었습니다.**
+
+- `routing.json` 에 `thinkingPolicy` 추가 — tier 로 결정 (`LOW: low` / `MEDIUM: medium` / `HIGH: max`).
+- `engine.sh` 가 `model[effort]` 접미를 붙입니다. `OHMYCLAW_THINKING` 으로 직접 지정할 수 있습니다.
+- `supportsUltra: false` 인 모델(Luna, codex 런타임)은 `ultra` 요청 시 `max` 로 자동 강등합니다.
+
+> ⚠ **접미 문법은 `OHMYCLAW_THINKING_SUFFIX=true` 일 때만 적용됩니다(기본 off).** `model[effort]` 는 acpx 가 자체 help 에 문서화한 형태지만(`acpx codex set model 'gpt-5.2[high]'`), spawn 시 `--model` 에도 통하는지는 라이브 세션이 필요해 검증하지 못했습니다. 검증 전까지 기본 경로는 바꾸지 않습니다.
+
+### Added — GLM-5.3 (opt-in)
+
+Artificial Analysis 가 2026-08-18 자로 `GLM-5.3 (max)` 를 평가 등재했습니다.
+
+**⚠ OpenClaw 2026.7.1 의 zai 카탈로그에는 아직 없습니다**(최신이 `glm-5.2`). 기본 활성화하면 모델 해석에 실패하므로 `ZAI_GLM53_ENABLED=true` 일 때만 타는 P83 오버레이로 넣었습니다. 조건은 P81 과 같습니다 — HIGH tier 또는 reasoning_heavy, lite 플랜 제외, codex frontier 가 켜져 있으면 그쪽이 우선.
+
+하드 스펙은 카탈로그 등재 전까지 `glm-5.2` 미러링이고 `scores` 는 추정치입니다.
+
+### Fixed — GLM-5.2 컨텍스트 윈도우 5배 오류
+
+`204800` 으로 적혀 있었으나 실측은 **`1000000`** 입니다(`maxTokens` 도 `131100` → `131072`). openclaw 카탈로그(`provider-catalog-*.js`)에서 확인했으며 비용(`$1.4` / `$4.4`)도 함께 채웠습니다.
+
+### Fixed — jq `//` 가 `false` 를 삼키던 버그
+
+`.models[$m].supportsUltra // true` 는 `supportsUltra: false` 일 때 `true` 를 돌려줍니다. jq 의 `//` 는 `false` 를 빈 값으로 취급하기 때문입니다. `has()` 로 존재를 먼저 확인하도록 고쳤습니다 — 이게 없으면 Luna 의 ultra 강등이 영영 걸리지 않습니다.
+
+### Notes — `sol-max` / `terra-max` / `luna-max` 는 모델이 아닙니다
+
+Artificial Analysis 의 `(max)` 표기는 **reasoning effort 주석**입니다(같은 체인지로그의 `GLM-5.3 (max)`, `Gemini 3.7 Flash (low/medium/high)` 와 동일한 관례). OpenClaw 카탈로그의 실제 모델 ID 는 `gpt-5.6-sol` / `-terra` / `-luna` 셋뿐이며 `-max` 접미 ID 는 존재하지 않습니다. 따라서 모델을 추가하는 대신 위의 thinking level 배선으로 처리했습니다.
+
+### Tests
+
+`tests/glm53-thinking.bats` **+13**. 전체 **336 PASS / 0 FAIL**.
+
+## [1.14.0] — 2026-08-19
+
+### Added — sqlite 세션 스토어: 긴 작업 재개 (`session-store.sh`)
+
+**긴 작업이 중단되면 처음부터 다시 하던 문제**를 해결합니다. 단계·태스크 단위로 sqlite 에 커밋해두고, 재개 시 **남은 일만** 다시 배정합니다.
+
+v1.12.0 의 result-aware deduper 와는 다른 층입니다 — deduper 는 **같은 툴콜 반복(폭주)** 을 억제하고, 이건 **중단된 작업의 재개**를 다룹니다.
+
+- **스토어** — `~/.ohmyclaw/sessions.sqlite` (`OHMYCLAW_SESSION_DB` 로 재지정). WAL + busy_timeout 으로 sqlite 가 직렬화하므로 파일락이 필요 없습니다. 8 워커 동시 쓰기 80/80, seq 충돌 0 으로 검증.
+- **테이블** — `sessions`(수명주기·하트비트·재개횟수) / `checkpoints`(단계별 산출물) / `tasks`(태스크 원장).
+- **재개 봉투** — `resume <sid>` 가 `remaining_task_ids` 를 포함한 JSON 을 냅니다. `done` 태스크는 재실행하지 않고, `running` 상태로 죽은 고아 태스크는 `pending` 으로 회수합니다.
+- **중단 감지** — `interrupted --stale-sec 900` 으로 하트비트 끊긴 세션을 뽑습니다.
+- **`spawn-agent.sh` 연동** — `OHMYCLAW_SESSION_ID` 가 있을 때만 기록하며 전부 best-effort. 스토어 장애가 spawn 을 막지 않습니다.
+- **`export <sid>`** — 트라젝토리 전체를 JSON 으로. 외부 뷰어(trackio 등)로 넘길 단일 출구이며 스토어 자체는 파이썬 런타임에 의존하지 않습니다.
+
+### Fixed — 버전 체크가 문자열 비교라 잘못 알리던 문제
+
+v1.13.1 의 `_check_update` 가 `"$cached_latest" != "$local_v"` 로 비교하고 있어 두 가지가 틀렸습니다.
+
+1. **로컬이 최신 릴리스보다 앞설 때**(개발 중) "업데이트 있음"을 영원히 출력 — 메인테이너가 가장 자주 겪는 케이스입니다.
+2. `1.9.0` vs `1.11.0` 같은 자리수 차이를 오판.
+
+`_semver_gt` 로 숫자 필드별 비교하도록 고쳤습니다. 프리릴리스 꼬리표(`-rc1`)는 제거 후 비교하고, 숫자가 아닌 값이 오면 알리지 않습니다.
+
+### Added — 별(star) 안내
+
+작업이 **성공했을 때만** 저장소 링크를 안내합니다.
+
+- 링크만 안내합니다. 토큰을 읽거나 API 로 누르는 동작은 하지 않습니다.
+- 30일 쿨다운. `ohmyclaw star --never` 로 영구 해제, `--force` 로 다시 보기.
+- `OHMYCLAW_SKIP_STAR_PROMPT=1` 로도 끌 수 있습니다.
+- 성공 종료(rc=0)에만 발화하므로 실패한 작업 뒤에 별을 조르지 않습니다.
+
+### Changed — 긴 작업을 자르던 한도 상향
+
+v1.13.1 이 acpx 타임아웃을 600s 로 올렸지만, **실제 절단 지점인 `agents/worker.md` 의 `timeout_ms: 600000`(10분) 은 그대로 남아 있었습니다.**
+
+| 지점 | 이전 | 이후 |
+|---|---|---|
+| `agents/worker.md` `timeout_ms` | 600000 (10분) | **3600000 (60분)** |
+| `agents/debugger.md` | 600000 | 1800000 (30분) |
+| `agents/planner.md` · `reviewer.md` | 300000 (5분) | 900000 (15분) |
+| `routing.json` acpx `timeoutSeconds` | 600 | 3600 |
+| `pipelines.yaml` work 단계 | 600000 | 3600000 |
+| 툴콜 서킷브레이커 | 50 | 400 |
+| `spawn-agent.sh` 기본 `max_tokens` | 32000 고정 | 모델 실제 한도 (routing.json) |
+| `agents/worker.md` `max_tokens` | 64000 | 128000 |
+
+`max_tool_calls: 50` 은 긴 작업의 **정상 동작**을 오탐하고 있었습니다. 진짜 반복은 v1.12.0 의 result-aware deduper(maxSame=50)가 잡으므로 400 으로 올렸습니다. `consecutive_same: 5` 는 그대로 둡니다.
+
+### Fixed — GPT-5.6 계열 메타데이터를 실측값으로 정정
+
+v1.11.0 의 GPT-5.6 항목이 관측 근거 없는 성능 서열을 담고 있었습니다. OpenClaw 2026.7.1 설치본 카탈로그(`openai-provider-*.js`, `thinking-policy-*.js`)를 직접 읽어 정정합니다.
+
+**Sol / Terra / Luna 는 컨텍스트(1.05M)·출력(128k)·reasoning·이미지 입력이 전부 동일합니다.** 다른 것은 비용과 기본 effort 뿐입니다.
+
+| 모델 | 비용 in/out (1M) | 기본 effort | ultra |
+|---|---|---|---|
+| Sol | $5 / $30 | low | ✅ |
+| Terra | $2.5 / $15 | medium | ✅ |
+| Luna | $1 / $6 | medium | codex 런타임 제외 |
+
+- `reasoningEffort: "ultra"` (Sol) → 실측 기본값은 `low` 입니다. `defaultThinking` 으로 교체하고 `supportsUltra` 를 분리했습니다.
+- Terra 를 "Ultra 사고 변형 — 최난도 전용"으로 적고 reasoning HIGH 에서 Sol 보다 우선시키던 것을 되돌립니다. Terra 는 Sol 의 **상위가 아니라 절반 가격의 동급**이라, 선택은 성능이 아니라 비용 결정입니다.
+- Luna 의 "추론 깊이는 얕음" 서술을 제거했습니다. 실측상 유일한 제약은 codex 런타임에서 ultra 미지원입니다.
+- `security` 오버레이가 MEDIUM 에 Sol, HIGH 에 Terra 를 주어 **MEDIUM 이 더 비싼 모델을 쓰던 역전**을 바로잡았습니다.
+- `contextWindow` / `maxTokens` / `costPer1k*` 를 추가해 `spawn-agent.sh` 가 출력 한도를 모델에서 읽을 수 있게 했습니다.
+- 운영 관측치인 `loopRisk` / `loopGuard` 는 반박 근거가 없어 업스트림 값 그대로 보존했습니다.
+
+### Added — 내구성 정책 (`pipelines.yaml` `durability:`)
+
+하트비트 주기·체크포인트 시점·재개 상한(5회)·보존 기간을 한 곳에서 선언합니다. `failure_policy.worker_timeout` 이 체크포인트 재개를 가리키도록 연결했습니다.
+
+### Tests
+
+`tests/session-store.bats` **+29**. 전체 **310 PASS / 0 FAIL**.
+
 ## [1.13.1] — 2026-07-15
 
 ### Added — 자동 버전 체크 (GitHub Releases API)

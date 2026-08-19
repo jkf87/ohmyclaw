@@ -25,8 +25,8 @@ spawn:
     - "구현 과정 히스토리"
     - "다른 태스크 결과"
     - "MEMORY.md"
-  max_tokens: 32000
-  timeout_ms: 300000                # 5분
+  max_tokens: 64000
+  timeout_ms: 900000                # 15분
 
 # === 트리거 조건 ===
 triggers:

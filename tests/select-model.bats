@@ -21,10 +21,10 @@ teardown() {
   [ "$output" = "glm-5" ]
 }
 
-@test "matrix pro coding_general HIGH -> glm-5.2 or gpt-5.x" {
+@test "matrix pro coding_general HIGH -> glm-5.x or gpt-5.x" {
   run sm "복잡한 트랜잭션 처리 + 동시성 + 분산 시스템 + 캐시 무효화 + 멀티 테넌시 + 마이크로서비스 + race condition + state machine + invariant + algorithm" coding_general --plan=pro
   [ "$status" -eq 0 ]
-  [[ "$output" == "glm-5.2" || "$output" == "gpt-5.5" || "$output" == "gpt-5.4" ]]
+  [[ "$output" == "glm-5.3" || "$output" == "glm-5.2" || "$output" =~ ^gpt-5\. ]]
 }
 
 @test "matrix pro security MEDIUM -> glm-5 or glm-5.1" {
@@ -46,13 +46,13 @@ teardown() {
   [[ "$output" =~ ^glm- ]]
 }
 
-@test "P81 reasoning_heavy + pro -> glm-5.2" {
+@test "P81 reasoning_heavy + pro -> glm-5.2 (glm53 gated off)" {
   run sm "분산 합의 정합성 증명 invariant" reasoning --plan=pro
   [ "$status" -eq 0 ]
   [ "$output" = "glm-5.2" ]
 }
 
-@test "P81 reasoning_heavy + max -> glm-5.2" {
+@test "P81 reasoning_heavy + max -> glm-5.2 (glm53 gated off)" {
   run sm "lock-free 알고리즘 정합성 증명" reasoning --plan=max
   [ "$status" -eq 0 ]
   [ "$output" = "glm-5.2" ]
@@ -79,8 +79,8 @@ teardown() {
 @test "openrouter overlay reasoning HIGH" {
   OPENROUTER_ENABLED=true run sm "분산 합의 정합성 증명 invariant + 복잡한 알고리즘 분석 + 다중 시나리오 검증 + tradeoff + race condition + lock-free + byzantine + state machine" reasoning --plan=pro
   [ "$status" -eq 0 ]
-  # reasoning_heavy → P81 (glm-5.2) 이 openrouter overlay(P79) 보다 우선
-  [[ "$output" =~ ^(openrouter-|gpt-|glm-5\.2) ]]
+  # reasoning_heavy → P81 (glm-5.3) 이 openrouter overlay(P79) 보다 우선
+  [[ "$output" =~ ^(openrouter-|gpt-|glm-5\.[23]) ]]
 }
 
 @test "openrouter prefer-free LOW uses free model" {
@@ -160,13 +160,13 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "glm-5.2 is the top glm in pro/max coding+reasoning fallback chains" {
-  run jq -e '.fallbackChains.pro.coding[0]=="glm-5.2" and .fallbackChains.max.reasoning[0]=="glm-5.2"' "$SKILL_DIR/routing.json"
+@test "glm-5.3 is the top glm in pro/max coding+reasoning fallback chains" {
+  run jq -e '.fallbackChains.pro.coding[0]=="glm-5.3" and .fallbackChains.max.reasoning[0]=="glm-5.3"' "$SKILL_DIR/routing.json"
   [ "$status" -eq 0 ]
 }
 
-@test "matrix HIGH coding/reasoning routes to glm-5.2 (pro+max)" {
-  run jq -e '.matrix.pro.coding_arch.HIGH=="glm-5.2" and .matrix.pro.coding_general.HIGH=="glm-5.2" and .matrix.pro.reasoning.HIGH=="glm-5.2" and .matrix.max.coding_arch.HIGH=="glm-5.2" and .matrix.max.reasoning.HIGH=="glm-5.2"' "$SKILL_DIR/routing.json"
+@test "matrix HIGH coding/reasoning routes to glm-5.3 (pro+max)" {
+  run jq -e '.matrix.pro.coding_arch.HIGH=="glm-5.3" and .matrix.pro.coding_general.HIGH=="glm-5.3" and .matrix.pro.reasoning.HIGH=="glm-5.3" and .matrix.max.coding_arch.HIGH=="glm-5.3" and .matrix.max.reasoning.HIGH=="glm-5.3"' "$SKILL_DIR/routing.json"
   [ "$status" -eq 0 ]
 }
 

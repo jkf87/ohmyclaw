@@ -65,8 +65,17 @@ TIMEOUT_MS=$(get_nested_value "timeout_ms")
 MAX_TOKENS=$(get_nested_value "max_tokens")
 
 SESSION_TYPE="${SESSION_TYPE:-isolated}"
-TIMEOUT_MS="${TIMEOUT_MS:-300000}"
-MAX_TOKENS="${MAX_TOKENS:-32000}"
+TIMEOUT_MS="${TIMEOUT_MS:-1800000}"     # 30분 — 체크포인트가 보호하므로 짧게 자를 이유가 없다
+
+# MAX_TOKENS 는 에이전트 frontmatter 가 지정하지 않으면 모델 실제 한도를 따른다.
+# (기존 32000 하드코딩은 gpt-5.6 계열 128k 출력의 1/4 만 쓰게 만들었다)
+ROUTING_JSON="${HARNESS_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/skills/ohmyclaw/routing.json"
+model_max_tokens() {
+    local model="$1"
+    if [[ -f "$ROUTING_JSON" ]] && command -v jq >/dev/null 2>&1; then
+        jq -r --arg m "$model" '.models[$m].maxTokens // empty' "$ROUTING_JSON" 2>/dev/null
+    fi
+}
 
 default_model_for_tier() {
     local tier="$1"
@@ -111,6 +120,12 @@ else
                 ;;
         esac
     fi
+fi
+
+# 모델이 정해진 뒤에야 출력 한도를 확정할 수 있다.
+if [[ -z "${MAX_TOKENS:-}" ]]; then
+    MAX_TOKENS="$(model_max_tokens "$SELECTED_MODEL")"
+    MAX_TOKENS="${MAX_TOKENS:-32000}"
 fi
 
 # ── 모델 → 계정 풀 매핑 ──
@@ -176,6 +191,26 @@ ${PROMPT}
 CONTEXT_EOF
 }
 
+# ──────────────────────────────────────────────
+# 내구성 — 세션 스토어에 태스크 착수를 기록한다.
+# OHMYCLAW_SESSION_ID 가 없으면 통째로 건너뛴다 (기존 동작 그대로).
+# 스토어 실패가 spawn 을 막지 않도록 전부 best-effort.
+# ──────────────────────────────────────────────
+SESSION_STORE="${HARNESS_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/skills/ohmyclaw/session-store.sh"
+STORE_TASK_ID="${OHMYCLAW_TASK_ID:-${AGENT_NAME}-$$}"
+
+store() {
+    [[ -n "${OHMYCLAW_SESSION_ID:-}" ]] || return 0
+    [[ -x "$SESSION_STORE" ]] || return 0
+    "$SESSION_STORE" "$@" >/dev/null 2>&1 || true
+}
+
+store start "$OHMYCLAW_SESSION_ID"
+store task-add "$OHMYCLAW_SESSION_ID" "$STORE_TASK_ID" "$TASK_DESC"
+store task-set "$OHMYCLAW_SESSION_ID" "$STORE_TASK_ID" running --model "$SELECTED_MODEL"
+store checkpoint "$OHMYCLAW_SESSION_ID" --stage spawn --agent "$AGENT_NAME" \
+      --model "$SELECTED_MODEL" --status started
+
 CONTEXT=$(build_context)
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -211,5 +246,9 @@ if [[ -n "$SELECTED_ACCOUNT" ]]; then
     echo "  auth_value: ${SELECTED_AUTH_VALUE}"
 fi
 echo "  status: simulated"
+if [[ -n "${OHMYCLAW_SESSION_ID:-}" ]]; then
+    echo "  session_id: ${OHMYCLAW_SESSION_ID}"
+    echo "  store_task_id: ${STORE_TASK_ID}"
+fi
 echo "  context_preview: |"
 printf '%s\n' "$CONTEXT" | sed 's/^/    /'

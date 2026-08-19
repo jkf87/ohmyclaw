@@ -26,8 +26,8 @@ spawn:
     - "다른 워커의 작업 내용"
     - "전체 계획서"
     - "MEMORY.md"
-  max_tokens: 64000
-  timeout_ms: 600000                # 10분
+  max_tokens: 128000               # gpt-5.6 계열 출력 한도
+  timeout_ms: 3600000               # 60분 — 긴 구현 본선. 중단돼도 세션 스토어에서 재개
 
 # === 트리거 조건 ===
 triggers:

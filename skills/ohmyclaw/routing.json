@@ -2,41 +2,67 @@
   "$schema": "https://openclaw.ai/schemas/skill-routing.json",
   "version": "1.6.0",
   "comment": "Single source of truth for Z.ai Coding Plan routing. Read by select-model.sh, engine.sh, and referenced by SKILL.md.",
-
   "engine": {
     "comment": "엔진 경계: ohmyclaw가 모델/계정/키를 선택한 뒤 실제 코딩 에이전트 실행을 ACP(acpx)로 위임한다. oh-my-pi(omp)를 1순위 엔진으로 쓰되 하드포크/벤더링하지 않고 acpx escape hatch('omp acp')로 spawn한다. omp 미설치 시 acpx 내장 어댑터(pi/codex/claude)로 graceful fallback. 우로보로스 reviewer는 omp 엔진 툴(lsp_diagnostics/ast_grep_search)을 그대로 사용한다. engine.sh가 본 블록을 단일 소스로 읽는다.",
     "boundary": "acp",
     "client": "acpx",
-    "preferred": ["omp", "pi", "codex", "claude"],
+    "preferred": [
+      "omp",
+      "pi",
+      "codex",
+      "claude"
+    ],
     "providerEngines": {
-      "zai": ["omp", "pi"],
-      "codex": ["omp", "codex"],
-      "openrouter": ["omp", "codex"]
+      "zai": [
+        "omp",
+        "pi"
+      ],
+      "codex": [
+        "omp",
+        "codex"
+      ],
+      "openrouter": [
+        "omp",
+        "codex"
+      ]
     },
     "acpxAgents": {
-      "omp":    { "mode": "agent-flag", "agent": "omp acp", "comment": "acpx --agent 'omp acp' escape hatch. ~/.acpx/config.json 커스텀 등록 스니펫은 engine.sh acp-config 로 출력." },
-      "pi":     { "mode": "builtin", "subcommand": "pi" },
-      "codex":  { "mode": "builtin", "subcommand": "codex" },
-      "claude": { "mode": "builtin", "subcommand": "claude" }
+      "omp": {
+        "mode": "agent-flag",
+        "agent": "omp acp",
+        "comment": "acpx --agent 'omp acp' escape hatch. ~/.acpx/config.json 커스텀 등록 스니펫은 engine.sh acp-config 로 출력."
+      },
+      "pi": {
+        "mode": "builtin",
+        "subcommand": "pi"
+      },
+      "codex": {
+        "mode": "builtin",
+        "subcommand": "codex"
+      },
+      "claude": {
+        "mode": "builtin",
+        "subcommand": "claude"
+      }
     },
     "permissions": {
       "comment": "ohmyclaw role → acpx 승인정책. read-only role 은 approve-reads, write role 은 approve-all. omp의 session/request_permission 과 정합.",
-      "reviewer":      "approve-reads",
-      "planner":       "approve-reads",
-      "verifier":      "approve-reads",
-      "critic":        "approve-reads",
-      "architect":     "approve-reads",
-      "executor":      "approve-all",
-      "worker":        "approve-all",
-      "debugger":      "approve-all",
+      "reviewer": "approve-reads",
+      "planner": "approve-reads",
+      "verifier": "approve-reads",
+      "critic": "approve-reads",
+      "architect": "approve-reads",
+      "executor": "approve-all",
+      "worker": "approve-all",
+      "debugger": "approve-all",
       "team-executor": "approve-all",
-      "default":       "approve-reads"
+      "default": "approve-reads"
     },
     "acpxFlags": {
       "format": "text",
-      "ttl": 300,
-      "timeoutSeconds": 600,
-      "comment": "공통 acpx 기본 플래그. timeout 은 GPT-5.6 ultra/xhigh extended thinking 대비 600s. glm-* 단독 사용 시 engine.sh 가 300s 로 단축 가능 (modelTierTimeout)."
+      "ttl": 3600,
+      "timeoutSeconds": 3600,
+      "comment": "공통 acpx 기본 플래그. timeout 3600s — 긴 작업이 ACP 레이어에서 잘리지 않게 한다. 중단 자체는 session-store.sh 체크포인트가 흡수하므로 짧게 자를 이유가 없다. glm-* 단독 사용 시 engine.sh 가 단축 가능 (modelTierTimeout)."
     },
     "modelTierTimeout": {
       "comment": "모델 tier별 acpx timeout override. engine.sh 가 selected model 의 tier 를 조회해 적용.",
@@ -51,37 +77,59 @@
     },
     "fallbackComment": "engine.sh 가 providerEngines[provider] 순서대로 command -v 확인. 첫 사용가능 엔진 선택. omp 부재 시 acpx 내장 어댑터로 강등."
   },
-
   "models": {
     "glm-5-turbo": {
       "displayName": "GLM-5 Turbo",
       "tier": "LOW",
       "contextWindow": 128000,
       "maxTokens": 131100,
-      "scores": { "coding": 70, "reasoning": 60, "korean": 95 },
+      "scores": {
+        "coding": 70,
+        "reasoning": 60,
+        "korean": 95
+      },
       "reasoningMode": false,
       "anthropicAlias": "haiku",
-      "plans": ["lite", "pro", "max"]
+      "plans": [
+        "lite",
+        "pro",
+        "max"
+      ]
     },
     "glm-5": {
       "displayName": "GLM-5",
       "tier": "MEDIUM",
       "contextWindow": 128000,
       "maxTokens": 131100,
-      "scores": { "coding": 88, "reasoning": 82, "korean": 95 },
+      "scores": {
+        "coding": 88,
+        "reasoning": 82,
+        "korean": 95
+      },
       "reasoningMode": true,
       "anthropicAlias": "sonnet",
-      "plans": ["lite", "pro", "max"]
+      "plans": [
+        "lite",
+        "pro",
+        "max"
+      ]
     },
     "glm-4.7": {
       "displayName": "GLM-4.7",
       "tier": "HIGH",
       "contextWindow": 204800,
       "maxTokens": 131072,
-      "scores": { "coding": 91, "reasoning": 90, "korean": 96 },
+      "scores": {
+        "coding": 91,
+        "reasoning": 90,
+        "korean": 96
+      },
       "reasoningMode": true,
       "anthropicAlias": "opus",
-      "plans": ["pro", "max"],
+      "plans": [
+        "pro",
+        "max"
+      ],
       "note": "Z.ai 제공 GLM-4.7. 한국어 문서 작업과 장문 생성용 중간 고성능 모델."
     },
     "glm-5.1": {
@@ -89,56 +137,112 @@
       "tier": "HIGH",
       "contextWindow": 204800,
       "maxTokens": 131100,
-      "scores": { "coding": 95, "reasoning": 95, "korean": 96 },
+      "scores": {
+        "coding": 95,
+        "reasoning": 95,
+        "korean": 96
+      },
       "reasoningMode": true,
       "anthropicAlias": "opus",
-      "plans": ["pro", "max"],
+      "plans": [
+        "pro",
+        "max"
+      ],
       "note": "Lite 플랜에서는 사용 불가. select-model.sh 가 자동 강등."
     },
     "glm-5.2": {
       "displayName": "GLM-5.2",
       "tier": "HIGH",
-      "contextWindow": 204800,
-      "maxTokens": 131100,
-      "scores": { "coding": 97, "reasoning": 96, "korean": 97 },
+      "contextWindow": 1000000,
+      "maxTokens": 131072,
+      "costPer1kInput": 1.4,
+      "costPer1kOutput": 4.4,
+      "scores": {
+        "coding": 97,
+        "reasoning": 96,
+        "korean": 97
+      },
       "reasoningMode": true,
       "anthropicAlias": "opus",
-      "plans": ["pro", "max"],
+      "plans": [
+        "pro",
+        "max"
+      ],
       "note": "차세대 GLM 플래그십 — coding/reasoning HIGH 새 1순위. Lite 불가, select-model.sh 자동 강등. 하드 스펙은 공식 발표 전까지 GLM-5.1 미러링, scores 는 후속 우위 반영."
+    },
+    "glm-5.3": {
+      "displayName": "GLM-5.3",
+      "tier": "HIGH",
+      "contextWindow": 1000000,
+      "maxTokens": 131072,
+      "scores": {
+        "coding": 98,
+        "reasoning": 97,
+        "korean": 97
+      },
+      "reasoningMode": true,
+      "defaultThinking": "max",
+      "anthropicAlias": "opus",
+      "plans": [
+        "pro",
+        "max"
+      ],
+      "note": "차세대 GLM 플래그십. Artificial Analysis 가 2026-08-18 'GLM-5.3 (max)' 로 평가 등재. 컨텍스트 1M. ⚠ OpenClaw 2026.7.1 zai 카탈로그에는 아직 없다(최신 glm-5.2) — 해석 실패 시 fallbackChain 이 glm-5.2 로 강등한다. 하드 스펙은 카탈로그 등재 전까지 glm-5.2 미러링, scores 는 추정치."
     },
     "gpt-5.6-sol": {
       "displayName": "GPT-5.6 Sol",
       "tier": "HIGH",
       "omxRole": "frontier",
+      "contextWindow": 1050000,
+      "maxTokens": 128000,
       "reasoningMode": true,
-      "reasoningEffort": "ultra",
+      "defaultThinking": "low",
+      "supportsUltra": true,
+      "costPer1kInput": 5.0,
+      "costPer1kOutput": 30.0,
       "auth": "oauth_codex",
-      "plans": ["oauth"],
-      "note": "OMX DEFAULT_FRONTIER_MODEL (OpenClaw 2026.7.1 신규 설치 기본값). 점수표 없음 — frontier role 라벨로 슬롯 결정. codex_oauth_enabled=true 일 때 활성.",
+      "plans": [
+        "oauth"
+      ],
+      "note": "OPENAI_CODEX_DEFAULT_MODEL (OpenClaw 2026.7.1 신규 설치 기본값). 스펙은 설치본 카탈로그 실측 — Sol/Terra/Luna 는 컨텍스트·출력·reasoning 이 전부 동일하고 비용과 기본 effort 만 다르다. Sol 기본 effort 는 low 이며 max/ultra 까지 상향 가능.",
       "loopRisk": "high",
       "loopGuard": "default"
     },
     "gpt-5.6-terra": {
       "displayName": "GPT-5.6 Terra",
       "tier": "HIGH",
-      "omxRole": "frontier-reasoning",
+      "omxRole": "balanced",
+      "contextWindow": 1050000,
+      "maxTokens": 128000,
       "reasoningMode": true,
-      "reasoningEffort": "ultra",
+      "defaultThinking": "medium",
+      "supportsUltra": true,
+      "costPer1kInput": 2.5,
+      "costPer1kOutput": 15.0,
       "auth": "oauth_codex",
-      "plans": ["oauth"],
-      "note": "GPT-5.6 Ultra 사고 변형 — 추론/수학/보안 최난도 전용. reasoning_heavy HIGH 시 gpt-5.6-sol 대신 우선.",
+      "plans": [
+        "oauth"
+      ],
+      "note": "Sol 의 상위 변형이 아니라 동급 — 컨텍스트/출력/reasoning 이 Sol 과 동일하고 비용만 절반이다. 기본 effort medium, max/ultra 상향 가능. 따라서 Terra 선택은 성능이 아니라 비용 결정이다.",
       "loopRisk": "critical",
       "loopGuard": "default"
     },
     "gpt-5.6-luna": {
       "displayName": "GPT-5.6 Luna",
       "tier": "HIGH",
-      "omxRole": "frontier-fast",
+      "omxRole": "economy",
+      "contextWindow": 1050000,
+      "maxTokens": 128000,
       "reasoningMode": true,
-      "reasoningEffort": "max",
+      "defaultThinking": "medium",
+      "supportsUltra": false,
+      "costPer1kInput": 1.0,
+      "costPer1kOutput": 6.0,
       "auth": "oauth_codex",
-      "plans": ["oauth"],
-      "note": "GPT-5.6 경량 변형 (max 사고). latency 민감한 HIGH 작업용. gpt-5.6-sol 보다 빠르나 추론 깊이는 얕음.",
+      "plans": [
+        "oauth"
+      ],
+      "note": "Sol 대비 1/5 비용이며 컨텍스트·출력·reasoning 은 동일하다. 유일한 실제 제약은 codex 런타임에서 ultra 미지원(max 까지) — openclaw/auto 런타임에서는 ultra 도 가능. 1.05M 컨텍스트를 저비용으로 쓰는 대량/장문 슬롯.",
       "loopRisk": "medium",
       "loopGuard": "default"
     },
@@ -148,7 +252,9 @@
       "omxRole": "legacy",
       "reasoningMode": true,
       "auth": "oauth_codex",
-      "plans": ["oauth"],
+      "plans": [
+        "oauth"
+      ],
       "note": "이전 frontier. gpt-5.6-sol 미사용 시 fallback 두 번째 자리. Codex CLI 가 5.6 미인식할 때 자동 강등."
     },
     "gpt-5.4": {
@@ -157,7 +263,9 @@
       "omxRole": "deep-legacy",
       "reasoningMode": true,
       "auth": "oauth_codex",
-      "plans": ["oauth"],
+      "plans": [
+        "oauth"
+      ],
       "note": "2세대 전 frontier. gpt-5.5 마저 미가용 시 최후 fallback."
     },
     "claude-code-experimental": {
@@ -165,10 +273,16 @@
       "tier": "HIGH",
       "contextWindow": 200000,
       "maxTokens": 32000,
-      "scores": { "coding": 94, "reasoning": 96, "korean": 82 },
+      "scores": {
+        "coding": 94,
+        "reasoning": 96,
+        "korean": 82
+      },
       "reasoningMode": true,
       "auth": "oauth_claude_cli",
-      "plans": ["experimental"],
+      "plans": [
+        "experimental"
+      ],
       "experimental": true,
       "note": "공식 Claude Code CLI delegation 전용 실험 경로. 기본 비활성. 정책/호환성 변화로 언제든 차단되거나 제거될 수 있음."
     },
@@ -177,12 +291,18 @@
       "tier": "MEDIUM",
       "contextWindow": 131072,
       "maxTokens": 8192,
-      "scores": { "coding": 78, "reasoning": 75, "korean": 65 },
+      "scores": {
+        "coding": 78,
+        "reasoning": 75,
+        "korean": 65
+      },
       "reasoningMode": false,
       "free": true,
       "auth": "api_key_openrouter",
       "openrouterId": "meta-llama/llama-3.3-70b-instruct:free",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 무료 티어. 일일 한도 있음. OPENROUTER_PREFER_FREE=true 시 우선 배정."
     },
     "openrouter-mistral-7b-free": {
@@ -190,12 +310,18 @@
       "tier": "LOW",
       "contextWindow": 32768,
       "maxTokens": 4096,
-      "scores": { "coding": 68, "reasoning": 65, "korean": 55 },
+      "scores": {
+        "coding": 68,
+        "reasoning": 65,
+        "korean": 55
+      },
       "reasoningMode": false,
       "free": true,
       "auth": "api_key_openrouter",
       "openrouterId": "mistralai/mistral-7b-instruct:free",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 무료 티어. 경량 작업 적합."
     },
     "openrouter-qwen-2.5-72b-free": {
@@ -203,12 +329,18 @@
       "tier": "MEDIUM",
       "contextWindow": 131072,
       "maxTokens": 8192,
-      "scores": { "coding": 80, "reasoning": 78, "korean": 85 },
+      "scores": {
+        "coding": 80,
+        "reasoning": 78,
+        "korean": 85
+      },
       "reasoningMode": false,
       "free": true,
       "auth": "api_key_openrouter",
       "openrouterId": "qwen/qwen-2.5-72b-instruct:free",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 무료 티어. 한국어 강점."
     },
     "openrouter-gemma-3-27b-free": {
@@ -216,12 +348,18 @@
       "tier": "LOW",
       "contextWindow": 131072,
       "maxTokens": 8192,
-      "scores": { "coding": 72, "reasoning": 70, "korean": 60 },
+      "scores": {
+        "coding": 72,
+        "reasoning": 70,
+        "korean": 60
+      },
       "reasoningMode": false,
       "free": true,
       "auth": "api_key_openrouter",
       "openrouterId": "google/gemma-3-27b-it:free",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 무료 티어. Google Gemma 3 경량."
     },
     "openrouter-claude-opus-4": {
@@ -229,11 +367,17 @@
       "tier": "HIGH",
       "contextWindow": 200000,
       "maxTokens": 32000,
-      "scores": { "coding": 95, "reasoning": 98, "korean": 85 },
+      "scores": {
+        "coding": 95,
+        "reasoning": 98,
+        "korean": 85
+      },
       "reasoningMode": true,
       "auth": "api_key_openrouter",
       "openrouterId": "anthropic/claude-opus-4",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 경유 Claude Opus 4. OPENROUTER_ENABLED=true + OPENROUTER_API_KEY 필요."
     },
     "openrouter-gemini-2.5-pro": {
@@ -241,11 +385,17 @@
       "tier": "HIGH",
       "contextWindow": 1000000,
       "maxTokens": 65536,
-      "scores": { "coding": 90, "reasoning": 92, "korean": 80 },
+      "scores": {
+        "coding": 90,
+        "reasoning": 92,
+        "korean": 80
+      },
       "reasoningMode": true,
       "auth": "api_key_openrouter",
       "openrouterId": "google/gemini-2.5-pro",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 경유 Gemini 2.5 Pro. 데이터 분석/멀티모달 강점."
     },
     "openrouter-deepseek-r1": {
@@ -253,11 +403,17 @@
       "tier": "HIGH",
       "contextWindow": 128000,
       "maxTokens": 32768,
-      "scores": { "coding": 88, "reasoning": 96, "korean": 75 },
+      "scores": {
+        "coding": 88,
+        "reasoning": 96,
+        "korean": 75
+      },
       "reasoningMode": true,
       "auth": "api_key_openrouter",
       "openrouterId": "deepseek/deepseek-r1",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 경유 DeepSeek R1. 추론/수학 최강."
     },
     "openrouter-qwen3-235b": {
@@ -265,33 +421,58 @@
       "tier": "MEDIUM",
       "contextWindow": 131072,
       "maxTokens": 32768,
-      "scores": { "coding": 85, "reasoning": 88, "korean": 90 },
+      "scores": {
+        "coding": 85,
+        "reasoning": 88,
+        "korean": 90
+      },
       "reasoningMode": false,
       "auth": "api_key_openrouter",
       "openrouterId": "qwen/qwen3-235b-a22b",
-      "plans": ["openrouter"],
+      "plans": [
+        "openrouter"
+      ],
       "note": "OpenRouter 경유 Qwen3 235B. 한국어 강점, 비용 효율."
     }
   },
-
   "plans": {
     "lite": {
       "priceUsdMonth": 3,
-      "allowedModels": ["glm-5-turbo", "glm-5"],
-      "blockedModels": ["glm-5.1", "glm-5.2"],
+      "allowedModels": [
+        "glm-5-turbo",
+        "glm-5"
+      ],
+      "blockedModels": [
+        "glm-5.1",
+        "glm-5.2",
+        "glm-5.3"
+      ],
       "quota": {
         "dailyTokens": 1500000,
         "sessionTokens": 300000,
         "taskTokens": 60000,
         "dailyRequests": 600
       },
-      "concurrency": { "maxWorkers": 2, "maxTotalSessions": 3 },
+      "concurrency": {
+        "maxWorkers": 2,
+        "maxTotalSessions": 3
+      },
       "fixLoopMaxIterations": 2,
-      "pipelineModes": ["solo", "parallel"]
+      "pipelineModes": [
+        "solo",
+        "parallel"
+      ]
     },
     "pro": {
       "priceUsdMonth": 15,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1", "glm-5.2"],
+      "allowedModels": [
+        "glm-5-turbo",
+        "glm-5",
+        "glm-4.7",
+        "glm-5.1",
+        "glm-5.2",
+        "glm-5.3"
+      ],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 8000000,
@@ -299,13 +480,27 @@
         "taskTokens": 200000,
         "dailyRequests": 3000
       },
-      "concurrency": { "maxWorkers": 4, "maxTotalSessions": 6 },
+      "concurrency": {
+        "maxWorkers": 4,
+        "maxTotalSessions": 6
+      },
       "fixLoopMaxIterations": 3,
-      "pipelineModes": ["solo", "parallel", "full"]
+      "pipelineModes": [
+        "solo",
+        "parallel",
+        "full"
+      ]
     },
     "max": {
       "priceUsdMonth": 30,
-      "allowedModels": ["glm-5-turbo", "glm-5", "glm-4.7", "glm-5.1", "glm-5.2"],
+      "allowedModels": [
+        "glm-5-turbo",
+        "glm-5",
+        "glm-4.7",
+        "glm-5.1",
+        "glm-5.2",
+        "glm-5.3"
+      ],
       "blockedModels": [],
       "quota": {
         "dailyTokens": 25000000,
@@ -313,129 +508,357 @@
         "taskTokens": 500000,
         "dailyRequests": 12000
       },
-      "concurrency": { "maxWorkers": 7, "maxTotalSessions": 12 },
+      "concurrency": {
+        "maxWorkers": 7,
+        "maxTotalSessions": 12
+      },
       "prioritySlot": true,
       "fixLoopMaxIterations": 4,
-      "pipelineModes": ["solo", "parallel", "full"]
+      "pipelineModes": [
+        "solo",
+        "parallel",
+        "full"
+      ]
     }
   },
-
   "matrix": {
     "lite": {
-      "coding_general":   { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "coding_arch":      { "LOW": "glm-5",       "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "korean_nlp":       { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "reasoning":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "debugging":        { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "content_creation": { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "data_analysis":    { "LOW": "glm-5-turbo", "MEDIUM": "glm-5", "HIGH": "glm-5" },
-      "security":         { "LOW": "glm-5",       "MEDIUM": "glm-5", "HIGH": "glm-5" }
+      "coding_general": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "coding_arch": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "korean_nlp": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "reasoning": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "debugging": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "content_creation": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "data_analysis": {
+        "LOW": "glm-5-turbo",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      },
+      "security": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5"
+      }
     },
     "pro": {
-      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.2" },
-      "coding_arch":      { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
-      "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.2" },
-      "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
-      "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "security":         { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
+      "coding_general": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.3"
+      },
+      "coding_arch": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.3"
+      },
+      "korean_nlp": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.1"
+      },
+      "reasoning": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.3"
+      },
+      "debugging": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.1"
+      },
+      "content_creation": {
+        "LOW": "glm-4.7",
+        "MEDIUM": "glm-4.7",
+        "HIGH": "glm-4.7"
+      },
+      "data_analysis": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.1"
+      },
+      "security": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.1"
+      }
     },
     "max": {
-      "coding_general":   { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
-      "coding_arch":      { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
-      "korean_nlp":       { "LOW": "glm-5",   "MEDIUM": "glm-5",   "HIGH": "glm-5.1" },
-      "reasoning":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.2" },
-      "debugging":        { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
-      "content_creation": { "LOW": "glm-4.7", "MEDIUM": "glm-4.7", "HIGH": "glm-4.7" },
-      "data_analysis":    { "LOW": "glm-5",   "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" },
-      "security":         { "LOW": "glm-5.1", "MEDIUM": "glm-5.1", "HIGH": "glm-5.1" }
+      "coding_general": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.3"
+      },
+      "coding_arch": {
+        "LOW": "glm-5.1",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.3"
+      },
+      "korean_nlp": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5",
+        "HIGH": "glm-5.1"
+      },
+      "reasoning": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.3"
+      },
+      "debugging": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.1"
+      },
+      "content_creation": {
+        "LOW": "glm-4.7",
+        "MEDIUM": "glm-4.7",
+        "HIGH": "glm-4.7"
+      },
+      "data_analysis": {
+        "LOW": "glm-5",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.1"
+      },
+      "security": {
+        "LOW": "glm-5.1",
+        "MEDIUM": "glm-5.1",
+        "HIGH": "glm-5.1"
+      }
     }
   },
-
+  "experimental": {
+    "comment": "라이브 검증이 끝나지 않은 기능. 기본 off 이며 여기서 true 로 바꾸면 영구 활성, 환경변수로 일회 override 할 수 있다. `ohmyclaw experimental` 로 조회/변경한다.",
+    "thinkingSuffix": {
+      "enabled": false,
+      "env": "OHMYCLAW_THINKING_SUFFIX",
+      "why": "model[effort] 접미로 reasoning effort 를 올린다(HIGH=max). codex-acp 가 advertise 하는 모델 ID 형태지만 spawn 시 --model 수용 여부를 라이브로 확인하지 못했다. 거부되면 fallbackChain 다음 모델로 강등된다."
+    },
+    "glm53": {
+      "enabled": false,
+      "env": "OHMYCLAW_GLM53",
+      "why": "glm-5.3 을 pro/max HIGH 슬롯에 사용한다. OpenClaw 2026.7.1 zai 카탈로그에 아직 없어(최신 glm-5.2) 해석 실패 가능. off 면 glm-5.2 로 강등한다."
+    }
+  },
+  "thinkingPolicy": {
+    "comment": "reasoning effort(thinking level) 를 tier 로 결정한다. 지금까지 하네스는 effort 를 전혀 넘기지 않아 모델의 defaultThinking 이 그대로 적용됐다 — gpt-5.6-sol 은 기본이 low 라서 frontier 슬롯이 최저 사고량으로 돌고 있었다. 모델이 supportsUltra=false 면 max 로 자동 강등한다.",
+    "enabled": true,
+    "byTier": {
+      "LOW": "low",
+      "MEDIUM": "medium",
+      "HIGH": "max"
+    },
+    "reasoningHeavy": "ultra",
+    "suffixSyntax": "model[effort]",
+    "suffixSyntaxNote": "acpx 가 자체 help 에 문서화한 형태 (acpx codex set model 'gpt-5.2[high]'). spawn 시 --model 에도 동일하게 통하는지는 미검증이라 OHMYCLAW_THINKING_SUFFIX=true 일 때만 접미를 붙인다.",
+    "levels": [
+      "off",
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra"
+    ]
+  },
   "codexOverlay": {
     "enabledWhen": "codex_oauth_enabled == true",
-    "comment": "OMX DEFAULT_FRONTIER_MODEL=gpt-5.6-sol 를 frontier 슬롯에 오버레이. ultra extended thinking. gpt-5.5 는 legacy fallback.",
+    "comment": "GPT-5.6 계열을 frontier 슬롯에 오버레이. 셋은 성능이 동일하고 비용만 다르므로(실측) 슬롯 배치는 비용 결정이다 — HIGH=Sol(기본 frontier), MEDIUM=Terra(동일 성능 절반 비용). gpt-5.5 는 legacy fallback.",
     "overrides": {
-      "coding_arch":     { "MEDIUM": "gpt-5.6-sol", "HIGH": "gpt-5.6-sol" },
-      "coding_general":  { "HIGH":   "gpt-5.6-sol" },
-      "debugging":       { "HIGH":   "gpt-5.6-sol" },
-      "security":        { "MEDIUM": "gpt-5.6-sol", "HIGH": "gpt-5.6-terra" },
-      "reasoning":       { "HIGH":   "gpt-5.6-terra" },
-      "data_analysis":   { "HIGH":   "gpt-5.6-sol" }
+      "coding_arch": {
+        "MEDIUM": "gpt-5.6-terra",
+        "HIGH": "gpt-5.6-sol"
+      },
+      "coding_general": {
+        "HIGH": "gpt-5.6-sol"
+      },
+      "debugging": {
+        "HIGH": "gpt-5.6-sol"
+      },
+      "security": {
+        "MEDIUM": "gpt-5.6-terra",
+        "HIGH": "gpt-5.6-sol"
+      },
+      "reasoning": {
+        "HIGH": "gpt-5.6-sol"
+      },
+      "data_analysis": {
+        "HIGH": "gpt-5.6-sol"
+      }
     }
   },
-
   "claudeCliOverlay": {
     "enabledWhen": "claudecli_delegation_enabled == true",
     "comment": "실험적 Claude Code CLI delegation 오버레이. 기본 비활성. 명시 opt-in 일 때만, Codex 오버레이 뒤 / OpenRouter 오버레이 앞에서 적용. reasoning/security/coding_arch 의 HIGH 난도만 제한적으로 위임.",
     "overrides": {
-      "reasoning":     { "HIGH": "claude-code-experimental" },
-      "coding_arch":   { "HIGH": "claude-code-experimental" },
-      "security":      { "HIGH": "claude-code-experimental" }
+      "reasoning": {
+        "HIGH": "claude-code-experimental"
+      },
+      "coding_arch": {
+        "HIGH": "claude-code-experimental"
+      },
+      "security": {
+        "HIGH": "claude-code-experimental"
+      }
     }
   },
-
   "openrouterFreeOverlay": {
     "enabledWhen": "openrouter_prefer_free == true",
     "comment": "OPENROUTER_PREFER_FREE=true 시 LOW/MEDIUM 복잡도 작업을 무료 모델로 우선 배정 (P78). HIGH 복잡도는 품질 보장을 위해 유료 모델(P79 이하)로 위임. 무료 모델 없는 카테고리/티어 조합은 P79 openrouterOverlay로 graceful fallback.",
-    "freeModels": ["openrouter-llama-3.3-70b-free", "openrouter-mistral-7b-free", "openrouter-qwen-2.5-72b-free", "openrouter-gemma-3-27b-free"],
+    "freeModels": [
+      "openrouter-llama-3.3-70b-free",
+      "openrouter-mistral-7b-free",
+      "openrouter-qwen-2.5-72b-free",
+      "openrouter-gemma-3-27b-free"
+    ],
     "overrides": {
-      "coding_general":   { "LOW": "openrouter-mistral-7b-free",      "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "coding_arch":      { "LOW": "openrouter-qwen-2.5-72b-free",    "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "korean_nlp":       { "LOW": "openrouter-qwen-2.5-72b-free",    "MEDIUM": "openrouter-qwen-2.5-72b-free"  },
-      "reasoning":        { "LOW": "openrouter-llama-3.3-70b-free",   "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "debugging":        { "LOW": "openrouter-mistral-7b-free",      "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "content_creation": { "LOW": "openrouter-gemma-3-27b-free",     "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "data_analysis":    { "LOW": "openrouter-qwen-2.5-72b-free",    "MEDIUM": "openrouter-llama-3.3-70b-free" },
-      "security":         { "LOW": "openrouter-llama-3.3-70b-free",   "MEDIUM": "openrouter-llama-3.3-70b-free" }
+      "coding_general": {
+        "LOW": "openrouter-mistral-7b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "coding_arch": {
+        "LOW": "openrouter-qwen-2.5-72b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "korean_nlp": {
+        "LOW": "openrouter-qwen-2.5-72b-free",
+        "MEDIUM": "openrouter-qwen-2.5-72b-free"
+      },
+      "reasoning": {
+        "LOW": "openrouter-llama-3.3-70b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "debugging": {
+        "LOW": "openrouter-mistral-7b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "content_creation": {
+        "LOW": "openrouter-gemma-3-27b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "data_analysis": {
+        "LOW": "openrouter-qwen-2.5-72b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      },
+      "security": {
+        "LOW": "openrouter-llama-3.3-70b-free",
+        "MEDIUM": "openrouter-llama-3.3-70b-free"
+      }
     }
   },
-
   "openrouterOverlay": {
     "enabledWhen": "openrouter_enabled == true",
     "comment": "OpenRouter 경유 외부 모델 오버레이. codexOverlay(P80) 다음, matrix(P75) 이전 P79 우선순위. codex+openrouter 동시 활성 시 codex 가 우선. coding_general/debugging 미커버: GLM-5.1 대비 OpenRouter 모델의 우위가 불명확하여 기본 matrix 위임.",
     "overrides": {
-      "reasoning":       { "HIGH":   "openrouter-deepseek-r1" },
-      "coding_arch":     { "HIGH":   "openrouter-claude-opus-4" },
-      "data_analysis":   { "HIGH":   "openrouter-gemini-2.5-pro" },
-      "korean_nlp":      { "HIGH":   "openrouter-qwen3-235b",   "MEDIUM": "openrouter-qwen3-235b" },
-      "security":        { "HIGH":   "openrouter-claude-opus-4" }
+      "reasoning": {
+        "HIGH": "openrouter-deepseek-r1"
+      },
+      "coding_arch": {
+        "HIGH": "openrouter-claude-opus-4"
+      },
+      "data_analysis": {
+        "HIGH": "openrouter-gemini-2.5-pro"
+      },
+      "korean_nlp": {
+        "HIGH": "openrouter-qwen3-235b",
+        "MEDIUM": "openrouter-qwen3-235b"
+      },
+      "security": {
+        "HIGH": "openrouter-claude-opus-4"
+      }
     }
   },
-
   "complexityTiers": {
-    "LOW":    { "min": 0,  "max": 4  },
-    "MEDIUM": { "min": 5,  "max": 9  },
-    "HIGH":   { "min": 10, "max": 20 }
+    "LOW": {
+      "min": 0,
+      "max": 4
+    },
+    "MEDIUM": {
+      "min": 5,
+      "max": 9
+    },
+    "HIGH": {
+      "min": 10,
+      "max": 20
+    }
   },
-
   "reasoningDetection": {
     "enabled": true,
     "minScore": 2,
     "comment": "감지되면 P81/P82 에 따라 reasoning_score 최상위 모델로 격상. LOW 복잡도라도 격상.",
     "keywordsKo": [
-      "증명", "알고리즘", "복잡도", "수학", "최적화", "정합성",
-      "상태 머신", "동형", "불변조건", "race condition",
-      "분산 합의", "정렬 증명", "lock-free", "Byzantine"
+      "증명",
+      "알고리즘",
+      "복잡도",
+      "수학",
+      "최적화",
+      "정합성",
+      "상태 머신",
+      "동형",
+      "불변조건",
+      "race condition",
+      "분산 합의",
+      "정렬 증명",
+      "lock-free",
+      "Byzantine"
     ],
     "keywordsEn": [
-      "prove", "proof", "invariant", "complexity", "big-?o",
-      "algorithm", "optimization", "theorem", "derive",
-      "tradeoff", "race condition", "distributed consensus",
-      "lock-free", "byzantine"
+      "prove",
+      "proof",
+      "invariant",
+      "complexity",
+      "big-?o",
+      "algorithm",
+      "optimization",
+      "theorem",
+      "derive",
+      "tradeoff",
+      "race condition",
+      "distributed consensus",
+      "lock-free",
+      "byzantine"
     ],
-    "categories": ["reasoning", "coding_arch", "data_analysis", "security"],
+    "categories": [
+      "reasoning",
+      "coding_arch",
+      "data_analysis",
+      "security"
+    ],
     "categoryBonus": 1,
     "keywordBonus": 2
   },
-
   "koreanDetection": {
     "enabled": true,
-    "thresholds": { "low": 0.3, "medium": 0.5, "high": 0.7 },
+    "thresholds": {
+      "low": 0.3,
+      "medium": 0.5,
+      "high": 0.7
+    },
     "codingOverride": true
   },
-
   "accounts": {
     "comment": "다중 계정 풀 — pool.sh 가 round-robin/cooldown 으로 선택. 원본 accounts.yaml 의 JSON 화.",
     "poolDefaults": {
@@ -454,11 +877,34 @@
         "anthropicBaseUrl": "https://api.z.ai/api/anthropic",
         "strategy": "round_robin",
         "planAware": true,
-        "modelPrefixes": ["glm-"],
+        "modelPrefixes": [
+          "glm-"
+        ],
         "accounts": [
-          { "id": "zai-primary",   "authType": "oauth_zai", "openclawProfile": "default", "plan": "max",  "weight": 10, "enabled": true  },
-          { "id": "zai-secondary", "authType": "api_key",   "envKey": "ZAI_API_KEY_2",     "plan": "lite", "weight": 5,  "enabled": false },
-          { "id": "zai-team-max",  "authType": "oauth_zai", "openclawProfile": "team",     "plan": "max",  "weight": 15, "enabled": false }
+          {
+            "id": "zai-primary",
+            "authType": "oauth_zai",
+            "openclawProfile": "default",
+            "plan": "max",
+            "weight": 10,
+            "enabled": true
+          },
+          {
+            "id": "zai-secondary",
+            "authType": "api_key",
+            "envKey": "ZAI_API_KEY_2",
+            "plan": "lite",
+            "weight": 5,
+            "enabled": false
+          },
+          {
+            "id": "zai-team-max",
+            "authType": "oauth_zai",
+            "openclawProfile": "team",
+            "plan": "max",
+            "weight": 15,
+            "enabled": false
+          }
         ]
       },
       "codex": {
@@ -466,24 +912,64 @@
         "baseUrl": "https://api.openai.com/v1",
         "strategy": "round_robin",
         "optional": true,
-        "modelPrefixes": ["gpt-"],
+        "modelPrefixes": [
+          "gpt-"
+        ],
         "comment": "활성화: 1) codex login 2) 본 풀 enabled=true 3) CODEX_OAUTH_ENABLED=true",
         "accounts": [
-          { "id": "codex-primary",   "authType": "oauth_codex", "codexHome": "~/.codex",       "weight": 10, "enabled": true },
-          { "id": "codex-secondary", "authType": "oauth_codex", "codexHome": "~/.codex-acct2", "weight": 10, "enabled": true },
-          { "id": "codex-tertiary",  "authType": "oauth_codex", "codexHome": "~/.codex-acct3", "weight": 10, "enabled": true }
+          {
+            "id": "codex-primary",
+            "authType": "oauth_codex",
+            "codexHome": "~/.codex",
+            "weight": 10,
+            "enabled": true
+          },
+          {
+            "id": "codex-secondary",
+            "authType": "oauth_codex",
+            "codexHome": "~/.codex-acct2",
+            "weight": 10,
+            "enabled": true
+          },
+          {
+            "id": "codex-tertiary",
+            "authType": "oauth_codex",
+            "codexHome": "~/.codex-acct3",
+            "weight": 10,
+            "enabled": true
+          }
         ]
       },
       "claudecli": {
         "providerId": "anthropic-claude-cli",
         "strategy": "round_robin",
         "optional": true,
-        "modelPrefixes": ["claude-code-"],
+        "modelPrefixes": [
+          "claude-code-"
+        ],
         "comment": "실험적 경로. 활성화: 1) claude CLI 로그인 완료 2) 본 풀의 enabled=true 한 계정 3) CLAUDECLI_DELEGATION_ENABLED=true. 멀티계정: CLAUDE_CONFIG_DIR=<path> 로 별도 디렉토리에서 `claude login` 후 해당 계정 enabled=true (codex 의 CODEX_HOME 과 동일 패턴).",
         "accounts": [
-          { "id": "claudecli-primary",   "authType": "oauth_claude_cli", "claudeHome": "~/.claude",        "weight": 10, "enabled": false },
-          { "id": "claudecli-secondary", "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct2",  "weight": 10, "enabled": false },
-          { "id": "claudecli-tertiary",  "authType": "oauth_claude_cli", "claudeHome": "~/.claude-acct3",  "weight": 10, "enabled": false }
+          {
+            "id": "claudecli-primary",
+            "authType": "oauth_claude_cli",
+            "claudeHome": "~/.claude",
+            "weight": 10,
+            "enabled": false
+          },
+          {
+            "id": "claudecli-secondary",
+            "authType": "oauth_claude_cli",
+            "claudeHome": "~/.claude-acct2",
+            "weight": 10,
+            "enabled": false
+          },
+          {
+            "id": "claudecli-tertiary",
+            "authType": "oauth_claude_cli",
+            "claudeHome": "~/.claude-acct3",
+            "weight": 10,
+            "enabled": false
+          }
         ]
       },
       "openrouter": {
@@ -491,10 +977,18 @@
         "baseUrl": "https://openrouter.ai/api/v1",
         "strategy": "round_robin",
         "optional": true,
-        "modelPrefixes": ["openrouter-"],
+        "modelPrefixes": [
+          "openrouter-"
+        ],
         "comment": "활성화: 1) OPENROUTER_API_KEY 발급 2) 본 풀 enabled=true 3) OPENROUTER_ENABLED=true. openrouter.ai 에서 200+ 모델 접근.",
         "accounts": [
-          { "id": "openrouter-primary", "authType": "api_key", "envKey": "OPENROUTER_API_KEY", "weight": 10, "enabled": false }
+          {
+            "id": "openrouter-primary",
+            "authType": "api_key",
+            "envKey": "OPENROUTER_API_KEY",
+            "weight": 10,
+            "enabled": false
+          }
         ]
       }
     },
@@ -503,44 +997,189 @@
       "providerId": "zai",
       "strategy": "fan_out",
       "accounts": [
-        { "id": "zai-fan-1", "authType": "oauth_zai", "openclawProfile": "default", "plan": "max", "weight": 10, "enabled": true },
-        { "id": "zai-fan-2", "authType": "oauth_zai", "openclawProfile": "team",    "plan": "max", "weight": 10, "enabled": true }
+        {
+          "id": "zai-fan-1",
+          "authType": "oauth_zai",
+          "openclawProfile": "default",
+          "plan": "max",
+          "weight": 10,
+          "enabled": true
+        },
+        {
+          "id": "zai-fan-2",
+          "authType": "oauth_zai",
+          "openclawProfile": "team",
+          "plan": "max",
+          "weight": 10,
+          "enabled": true
+        }
       ]
     }
   },
-
   "fallbackChains": {
     "lite": {
-      "coding":    ["glm-5", "glm-5-turbo"],
-      "korean":    ["glm-5", "glm-5-turbo"],
-      "reasoning": ["glm-5", "glm-5-turbo"]
+      "coding": [
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "korean": [
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "reasoning": [
+        "glm-5",
+        "glm-5-turbo"
+      ]
     },
     "pro": {
-      "coding":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "korean": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "reasoning": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ]
     },
     "max": {
-      "coding":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "korean": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "reasoning": [
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ]
     },
     "withCodex": {
-      "coding":    ["gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5"],
-      "reasoning": ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding": [
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "security": [
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5"
+      ],
+      "reasoning": [
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ]
     },
     "withClaudeCli": {
-      "coding":    ["claude-code-experimental", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["claude-code-experimental", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5"],
-      "reasoning": ["claude-code-experimental", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding": [
+        "claude-code-experimental",
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "security": [
+        "claude-code-experimental",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5"
+      ],
+      "reasoning": [
+        "claude-code-experimental",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ]
     },
     "withOpenRouter": {
-      "coding":    ["openrouter-claude-opus-4", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "korean":    ["openrouter-qwen3-235b",    "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "reasoning": ["openrouter-deepseek-r1",   "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"],
-      "security":  ["openrouter-claude-opus-4", "glm-5.2", "glm-5.1", "glm-5"],
-      "data":      ["openrouter-gemini-2.5-pro","glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo"]
+      "coding": [
+        "openrouter-claude-opus-4",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "korean": [
+        "openrouter-qwen3-235b",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "reasoning": [
+        "openrouter-deepseek-r1",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ],
+      "security": [
+        "openrouter-claude-opus-4",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5"
+      ],
+      "data": [
+        "openrouter-gemini-2.5-pro",
+        "glm-5.3",
+        "glm-5.2",
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo"
+      ]
     }
   }
 }
